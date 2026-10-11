@@ -1,4 +1,2020 @@
-- name: Apply Geno update (range select + reactions fix)
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Create project files
+        run: |
+          cat > 'settings.gradle.kts' <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "ChatCopier"
+          include(":app")
+          EOF
+          cat > 'build.gradle.kts' <<'EOF'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF
+          cat > 'gradle.properties' <<'EOF'
+          org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
+          kotlin.code.style=official
+          android.useAndroidX=false
+          EOF
+          mkdir -p 'app'
+          cat > 'app/build.gradle.kts' <<'EOF'
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "com.example.chatcopier"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "com.example.chatcopier"
+                  minSdk = 26
+                  targetSdk = 34
+                  versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+                  versionName = "2.0"
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+
+          dependencies {
+              implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+          }
+          EOF
+          mkdir -p 'app/src/main'
+          cat > 'app/src/main/AndroidManifest.xml' <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <application
+                  android:allowBackup="false"
+                  android:icon="@drawable/ic_launcher"
+                  android:label="@string/app_name"
+                  android:supportsRtl="true"
+                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+
+                  <service
+                      android:name=".WaService"
+                      android:exported="true"
+                      android:label="@string/app_name"
+                      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+                      <intent-filter>
+                          <action android:name="android.accessibilityservice.AccessibilityService" />
+                      </intent-filter>
+                      <meta-data
+                          android:name="android.accessibilityservice"
+                          android:resource="@xml/accessibility_service_config" />
+                  </service>
+              </application>
+          </manifest>
+          EOF
+          mkdir -p 'app/src/main/res/xml'
+          cat > 'app/src/main/res/xml/accessibility_service_config.xml' <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+              android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewScrolled|typeViewClicked|typeViewLongClicked"
+              android:accessibilityFeedbackType="feedbackGeneric"
+              android:accessibilityFlags="flagReportViewIds|flagIncludeNotImportantViews"
+              android:canRetrieveWindowContent="true"
+              android:canPerformGestures="true"
+              android:notificationTimeout="100"
+              android:description="@string/service_desc" />
+          EOF
+          mkdir -p 'app/src/main/res/values'
+          cat > 'app/src/main/res/values/strings.xml' <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">Geno</string>
+              <string name="service_desc">نفس إضافة Geno لكروم: يعرض لوحة عايمة داخل واتساب لتحديد الرسائل ونسخ نصوصها (مع الفاصل وخيارات النسخ والتفاعل بعد النسخ).</string>
+          </resources>
+          EOF
+          mkdir -p 'app/src/main/res/drawable'
+          cat > 'app/src/main/res/drawable/ic_launcher.xml' <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:aapt="http://schemas.android.com/aapt"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="1024"
+              android:viewportHeight="1024">
+              <path android:pathData="M232,0 H792 A232,232 0 0 1 1024,232 V792 A232,232 0 0 1 792,1024 H232 A232,232 0 0 1 0,792 V232 A232,232 0 0 1 232,0 Z">
+                  <aapt:attr name="android:fillColor">
+                      <gradient
+                          android:startX="0"
+                          android:startY="0"
+                          android:endX="1024"
+                          android:endY="1024"
+                          android:type="linear">
+                          <item android:color="#16DEAA" android:offset="0.0" />
+                          <item android:color="#005C4A" android:offset="1.0" />
+                      </gradient>
+                  </aapt:attr>
+              </path>
+              <path
+                  android:pathData="M762,500 A250,250 0 1 1 703.5,339.3"
+                  android:strokeColor="#FFFFFF"
+                  android:strokeWidth="100"
+                  android:strokeLineCap="round" />
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M522,452 H812 V548 H522 Z" />
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M447.3,741.5 L250.4,761.6 L277.1,585.5 Z" />
+          </vector>
+          EOF
+          mkdir -p 'app/src/main/java/com/example/chatcopier'
+          cat > 'app/src/main/java/com/example/chatcopier/MainActivity.kt' <<'EOF'
+          package com.example.chatcopier
+
+          import android.app.Activity
+          import android.content.Intent
+          import android.graphics.Color
+          import android.net.Uri
+          import android.os.Bundle
+          import android.provider.Settings
+          import android.view.View
+          import android.widget.Button
+          import android.widget.LinearLayout
+          import android.widget.ScrollView
+          import android.widget.TextView
+
+          class MainActivity : Activity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  val pad = (18 * resources.displayMetrics.density).toInt()
+
+                  val box = LinearLayout(this)
+                  box.orientation = LinearLayout.VERTICAL
+                  box.setPadding(pad, pad * 2, pad, pad)
+                  box.layoutDirection = View.LAYOUT_DIRECTION_RTL
+
+                  val title = TextView(this)
+                  title.textSize = 22f
+                  title.text = "Geno Extension"
+                  title.setTextColor(Color.parseColor("#06CF9C"))
+                  box.addView(title)
+
+                  val help = TextView(this)
+                  help.textSize = 14f
+                  help.setTextColor(Color.parseColor("#E9EDEF"))
+                  help.setPadding(0, pad / 2, 0, pad / 2)
+                  help.text = "نفس إضافة Geno بتاعة كروم، بس جوه واتساب على الموبايل.\n\n" +
+                      "1) دوس \"فتح إعدادات الإتاحة\" وفعّل خدمة \"Geno\".\n" +
+                      "   (لو الخيار رمادي: دوس \"إعدادات التطبيق\" ثم ⋮ ثم \"السماح بالإعدادات المقيّدة\"، وبعدها فعّل الخدمة.)\n\n" +
+                      "2) افتح أي شات في واتساب، هتلاقي شعار Geno صغير عايم (تقدر تسحبه من ⋮⋮).\n\n" +
+                      "3) دوس الشعار أو \"تحديد رسائل\": هتظهر دواير على طرف الشاشة جنب كل رسالة.\n\n" +
+                      "4) دوس على الدايرة لتحديد/إلغاء رسالة. ضغطة طويلة على الدايرة = تحديد كل الرسائل من آخر دايرة دوستها لحد هنا (زي Shift في الإضافة).\n\n" +
+                      "5) اسكرول براحة: التطبيق بيسجّل الرسائل اللي بتعدي قدامك (زي ما الإضافة بتفتكر الرسائل اللي ظهرت).\n\n" +
+                      "6) من ⚙: تحديد سريع (كل الرسائل / رسائلي / رسائلهم)، خيارات النسخ، الفاصل، التفاعل بعد النسخ، تنزيل txt، وتشخيص.\n\n" +
+                      "7) دوس \"نسخ\" والصق في أي مكان."
+                  box.addView(help)
+
+                  val b1 = Button(this)
+                  b1.text = "فتح إعدادات الإتاحة"
+                  b1.setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                  box.addView(b1)
+
+                  val b2 = Button(this)
+                  b2.text = "إعدادات التطبيق"
+                  b2.setOnClickListener {
+                      startActivity(
+                          Intent(
+                              Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                              Uri.parse("package:" + packageName)
+                          )
+                      )
+                  }
+                  box.addView(b2)
+
+                  box.addView(SettingsUi.build(this, true) {})
+
+                  val scroll = ScrollView(this)
+                  scroll.setBackgroundColor(Color.parseColor("#111B21"))
+                  scroll.addView(box)
+                  setContentView(scroll)
+              }
+          }
+          EOF
+          mkdir -p 'app/src/main/java/com/example/chatcopier'
+          cat > 'app/src/main/java/com/example/chatcopier/Prefs.kt' <<'EOF'
+          package com.example.chatcopier
+
+          import android.content.Context
+
+          object Prefs {
+              // نفس فواصل الإضافة (\n بتتحول لسطر جديد وقت النسخ)
+              const val SEP_LINE = "\\n----------\\n"
+              const val SEP_STARS = "\\n**************\\n"
+              const val SEP_BLANK = "\\n\\n"
+              const val SEP_NL = "\\n"
+
+              // تفاعلات واتساب الافتراضية (بدون رمز التنسيق FE0F)
+              val EMOJIS = listOf("👍", "❤", "😂", "😮", "😢", "🙏")
+
+              private fun sp(c: Context) = c.getSharedPreferences("geno", Context.MODE_PRIVATE)
+
+              fun bool(c: Context, k: String): Boolean {
+                  val d = (k == "integrate")
+                  return sp(c).getBoolean(k, d)
+              }
+
+              fun setBool(c: Context, k: String, v: Boolean) {
+                  sp(c).edit().putBoolean(k, v).apply()
+              }
+
+              fun str(c: Context, k: String, d: String): String {
+                  return sp(c).getString(k, d) ?: d
+              }
+
+              fun setStr(c: Context, k: String, v: String) {
+                  sp(c).edit().putString(k, v).apply()
+              }
+
+              fun int(c: Context, k: String, d: Int): Int {
+                  return sp(c).getInt(k, d)
+              }
+
+              fun setInt(c: Context, k: String, v: Int) {
+                  sp(c).edit().putInt(k, v).apply()
+              }
+          }
+          EOF
+          mkdir -p 'app/src/main/java/com/example/chatcopier'
+          cat > 'app/src/main/java/com/example/chatcopier/SettingsUi.kt' <<'EOF'
+          package com.example.chatcopier
+
+          import android.content.Context
+          import android.graphics.Color
+          import android.graphics.drawable.GradientDrawable
+          import android.text.Editable
+          import android.text.TextWatcher
+          import android.view.View
+          import android.widget.Button
+          import android.widget.EditText
+          import android.widget.LinearLayout
+          import android.widget.Switch
+          import android.widget.TextView
+
+          object SettingsUi {
+              private const val TX = "#E9EDEF"
+              private const val MUT = "#8696A0"
+              private const val AC = "#00A884"
+              private const val BG3 = "#2A3942"
+
+              private fun dp(c: Context, v: Int): Int {
+                  return (v * c.resources.displayMetrics.density).toInt()
+              }
+
+              private fun round(c: Context, color: String, r: Int): GradientDrawable {
+                  val g = GradientDrawable()
+                  g.setColor(Color.parseColor(color))
+                  g.cornerRadius = dp(c, r).toFloat()
+                  return g
+              }
+
+              fun section(c: Context, t: String): TextView {
+                  val v = TextView(c)
+                  v.text = t
+                  v.textSize = 11f
+                  v.setTextColor(Color.parseColor(MUT))
+                  v.setPadding(0, dp(c, 10), 0, dp(c, 3))
+                  return v
+              }
+
+              private fun sw(c: Context, label: String, key: String, onChange: () -> Unit): Switch {
+                  val s = Switch(c)
+                  s.text = label
+                  s.textSize = 12f
+                  s.setTextColor(Color.parseColor(TX))
+                  s.isChecked = Prefs.bool(c, key)
+                  s.setPadding(0, dp(c, 4), 0, dp(c, 4))
+                  s.setOnCheckedChangeListener { _, v ->
+                      Prefs.setBool(c, key, v)
+                      onChange()
+                  }
+                  return s
+              }
+
+              private fun chips(
+                  c: Context,
+                  key: String,
+                  def: String,
+                  labels: List<String>,
+                  values: List<String>,
+                  onPick: () -> Unit
+              ): LinearLayout {
+                  val row = LinearLayout(c)
+                  row.orientation = LinearLayout.HORIZONTAL
+                  val btns = ArrayList<Button>()
+
+                  fun mark() {
+                      val cur = Prefs.str(c, key, def)
+                      for (i in btns.indices) {
+                          btns[i].background = round(c, if (values[i] == cur) AC else BG3, 14)
+                      }
+                  }
+
+                  for (i in labels.indices) {
+                      val b = Button(c)
+                      b.text = labels[i]
+                      b.textSize = 11f
+                      b.isAllCaps = false
+                      b.minHeight = 0
+                      b.minimumHeight = 0
+                      b.minWidth = 0
+                      b.minimumWidth = 0
+                      b.setPadding(dp(c, 4), dp(c, 6), dp(c, 4), dp(c, 6))
+                      b.setTextColor(Color.parseColor(TX))
+                      b.setOnClickListener {
+                          Prefs.setStr(c, key, values[i])
+                          mark()
+                          onPick()
+                      }
+                      val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                      lp.setMargins(dp(c, 2), 0, dp(c, 2), 0)
+                      row.addView(b, lp)
+                      btns.add(b)
+                  }
+                  mark()
+                  return row
+              }
+
+              /** full = true يضيف خانة كتابة الفاصل المخصص (بتشتغل بس في شاشة التطبيق). */
+              fun build(c: Context, full: Boolean, onChange: () -> Unit): LinearLayout {
+                  val box = LinearLayout(c)
+                  box.orientation = LinearLayout.VERTICAL
+                  box.layoutDirection = View.LAYOUT_DIRECTION_RTL
+
+                  box.addView(section(c, "خيارات النسخ"))
+                  box.addView(sw(c, "اسم المرسل", "sender", onChange))
+                  box.addView(sw(c, "الوقت والتاريخ", "time", onChange))
+                  box.addView(sw(c, "ترقيم الرسائل", "number", onChange))
+                  box.addView(sw(c, "الرسالة المقتبسة (الرد)", "quoted", onChange))
+                  box.addView(sw(c, "مسح التحديد بعد النسخ", "autoClear", onChange))
+                  box.addView(sw(c, "تحديد بالضغط على الرسالة (تجريبي)", "clickAnywhere", onChange))
+                  box.addView(sw(c, "دمج Geno (زرار صغير بدل اللوحة)", "integrate", onChange))
+
+                  box.addView(section(c, "مكان مربعات التحديد"))
+                  box.addView(chips(c, "side", "right", listOf("يمين", "يسار"), listOf("right", "left"), onChange))
+
+                  box.addView(section(c, "تفاعل بعد النسخ (الطرف التاني بيشوفه)"))
+                  val emLabels = ArrayList<String>()
+                  val emValues = ArrayList<String>()
+                  emLabels.add("بدون")
+                  emValues.add("")
+                  for (e in Prefs.EMOJIS) {
+                      emLabels.add(e)
+                      emValues.add(e)
+                  }
+                  box.addView(chips(c, "reactEmoji", "", emLabels, emValues, onChange))
+
+                  box.addView(section(c, "الفاصل بين الرسائل (\\n = سطر جديد)"))
+
+                  var et: EditText? = null
+                  if (full) {
+                      val e = EditText(c)
+                      e.setText(Prefs.str(c, "sep", Prefs.SEP_LINE))
+                      e.setTextColor(Color.parseColor(TX))
+                      e.textSize = 13f
+                      e.setSingleLine(true)
+                      e.layoutDirection = View.LAYOUT_DIRECTION_LTR
+                      e.addTextChangedListener(object : TextWatcher {
+                          override fun afterTextChanged(s: Editable?) {
+                              Prefs.setStr(c, "sep", s?.toString() ?: "")
+                          }
+
+                          override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+
+                          override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                      })
+                      et = e
+                  }
+
+                  box.addView(
+                      chips(
+                          c, "sep", Prefs.SEP_LINE,
+                          listOf("خط فاصل", "نجوم", "سطر فاضي", "سطر"),
+                          listOf(Prefs.SEP_LINE, Prefs.SEP_STARS, Prefs.SEP_BLANK, Prefs.SEP_NL)
+                      ) {
+                          et?.setText(Prefs.str(c, "sep", Prefs.SEP_LINE))
+                          onChange()
+                      }
+                  )
+                  val editor: EditText? = et
+                  if (editor != null) box.addView(editor)
+                  return box
+              }
+          }
+          EOF
+          mkdir -p 'app/src/main/java/com/example/chatcopier'
+          cat > 'app/src/main/java/com/example/chatcopier/WaService.kt' <<'EOF'
+          package com.example.chatcopier
+
+          import android.accessibilityservice.AccessibilityService
+          import android.accessibilityservice.GestureDescription
+          import android.content.ClipData
+          import android.content.ClipboardManager
+          import android.content.ContentValues
+          import android.content.Context
+          import android.content.Intent
+          import android.graphics.Canvas
+          import android.graphics.Color
+          import android.graphics.Paint
+          import android.graphics.Path
+          import android.graphics.PixelFormat
+          import android.graphics.Rect
+          import android.graphics.drawable.GradientDrawable
+          import android.os.Build
+          import android.os.Environment
+          import android.os.Handler
+          import android.os.Looper
+          import android.provider.MediaStore
+          import android.view.Gravity
+          import android.view.MotionEvent
+          import android.view.View
+          import android.view.WindowManager
+          import android.view.accessibility.AccessibilityEvent
+          import android.view.accessibility.AccessibilityNodeInfo
+          import android.view.inputmethod.InputMethodManager
+          import android.widget.Button
+          import android.widget.ImageView
+          import android.widget.LinearLayout
+          import android.widget.ScrollView
+          import android.widget.TextView
+          import android.widget.Toast
+          import kotlinx.coroutines.CoroutineScope
+          import kotlinx.coroutines.Dispatchers
+          import kotlinx.coroutines.Job
+          import kotlinx.coroutines.SupervisorJob
+          import kotlinx.coroutines.cancel
+          import kotlinx.coroutines.currentCoroutineContext
+          import kotlinx.coroutines.delay
+          import kotlinx.coroutines.isActive
+          import kotlinx.coroutines.launch
+          import kotlinx.coroutines.suspendCancellableCoroutine
+          import kotlin.coroutines.resume
+
+          // "اقرأ المزيد" في آخر الرسالة (لازم يسبقها ...)
+          private val RM_RE = Regex(
+              "(…|\\.\\.\\.)[\\s\\u200e\\u200f]*(read more|عرض المزيد|اقرأ المزيد|قراءة المزيد|عرض الكل)[\\s\\u200e\\u200f.…]*\$",
+              RegexOption.IGNORE_CASE
+          )
+
+          // علامات الرسالة الصادرة (حالة الإرسال)
+          private val OUT_LABEL = Regex(
+              "^\\s*(sent|delivered|read|pending|تم الإرسال|تم التسليم|تمت القراءة|قيد الانتظار|مرسلة|تم الارسال)\\s*\$",
+              RegexOption.IGNORE_CASE
+          )
+
+          private class Msg(val id: Int) {
+              var text = ""
+              var key = ""
+              var trunc = false
+              var mine = false
+              var time = ""
+              var date = ""
+              var sender = ""
+              var quoted = ""
+          }
+
+          private class Entry(
+              val text: String,
+              val mine: Boolean,
+              val time: String,
+              val date: String,
+              val sender: String,
+              val quoted: String,
+              val body: AccessibilityNodeInfo,
+              val row: Rect
+          ) {
+              val trunc: Boolean = RM_RE.containsMatchIn(text)
+              val key: String = if (trunc) RM_RE.replace(text, "").trim() else text
+              var msg: Msg? = null
+          }
+
+          private class Snap(
+              val entries: List<Entry>,
+              val listRect: Rect,
+              val list: AccessibilityNodeInfo,
+              val title: String,
+              val group: Boolean
+          )
+
+          private class RowScan {
+              var body: AccessibilityNodeInfo? = null
+              var bodyText = ""
+              var time = ""
+              var sender = ""
+              var quoted = ""
+              var mine = false
+              var divider = ""
+          }
+
+          private class TreeWalk {
+              var list: AccessibilityNodeInfo? = null
+              var listH = 0
+              var title = ""
+          }
+
+          private class Out(val text: String, val count: Int, val skipped: Int)
+
+          /** عمود دواير التحديد على طرف الشاشة. */
+          private class StripView(ctx: Context) : View(ctx) {
+              var items: List<Pair<Rect, Int>> = emptyList()
+              var selectedIds: Set<Int> = emptySet()
+              var listTop = 0
+              var listBottom = 0
+              var onTap: ((Int, Boolean) -> Unit)? = null
+
+              private val dens = ctx.resources.displayMetrics.density
+              private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+              private val green = Color.parseColor("#00A884")
+              private val dark = Color.parseColor("#CC111B21")
+              private val gray = Color.parseColor("#8696A0")
+              private var downT = 0L
+
+              override fun onDraw(c: Canvas) {
+                  val loc = IntArray(2)
+                  getLocationOnScreen(loc)
+                  val cx = width / 2f
+                  val rad = 11f * dens
+                  for (it in items) {
+                      val r = it.first
+                      val top = maxOf(r.top, listTop)
+                      val bot = minOf(r.bottom, listBottom)
+                      if (bot - top < 14 * dens) continue
+                      val cy = (top + bot) / 2f - loc[1]
+                      val sel = selectedIds.contains(it.second)
+                      paint.style = Paint.Style.FILL
+                      paint.color = if (sel) green else dark
+                      c.drawCircle(cx, cy, rad, paint)
+                      paint.style = Paint.Style.STROKE
+                      paint.strokeWidth = 2f * dens
+                      paint.color = if (sel) green else gray
+                      c.drawCircle(cx, cy, rad, paint)
+                      if (sel) {
+                          paint.color = Color.WHITE
+                          paint.strokeWidth = 2.2f * dens
+                          c.drawLine(cx - 5f * dens, cy, cx - 1.5f * dens, cy + 4f * dens, paint)
+                          c.drawLine(cx - 1.5f * dens, cy + 4f * dens, cx + 5.5f * dens, cy - 4f * dens, paint)
+                      }
+                  }
+              }
+
+              override fun onTouchEvent(ev: MotionEvent): Boolean {
+                  if (ev.action == MotionEvent.ACTION_DOWN) {
+                      downT = ev.eventTime
+                      return true
+                  }
+                  if (ev.action == MotionEvent.ACTION_UP) {
+                      val y = ev.rawY.toInt()
+                      var hit: Int = -1
+                      for (it in items) {
+                          val top = maxOf(it.first.top, listTop)
+                          val bot = minOf(it.first.bottom, listBottom)
+                          if (y >= top && y <= bot) {
+                              hit = it.second
+                              break
+                          }
+                      }
+                      if (hit >= 0) {
+                          val longPress = (ev.eventTime - downT) > 450L
+                          onTap?.invoke(hit, longPress)
+                      }
+                      return true
+                  }
+                  return true
+              }
+          }
+
+          /** تظليل الرسائل المحددة (مش بيمسك اللمس). */
+          private class HiView(ctx: Context) : View(ctx) {
+              var items: List<Pair<Rect, Int>> = emptyList()
+              var selectedIds: Set<Int> = emptySet()
+              var listTop = 0
+              var listBottom = 0
+              private val paint = Paint()
+
+              init {
+                  paint.color = Color.parseColor("#2800A884")
+              }
+
+              override fun onDraw(c: Canvas) {
+                  val loc = IntArray(2)
+                  getLocationOnScreen(loc)
+                  for (it in items) {
+                      if (!selectedIds.contains(it.second)) continue
+                      val top = maxOf(it.first.top, listTop) - loc[1]
+                      val bot = minOf(it.first.bottom, listBottom) - loc[1]
+                      if (bot <= top) continue
+                      c.drawRect(0f, top.toFloat(), width.toFloat(), bot.toFloat(), paint)
+                  }
+              }
+          }
+
+          class WaService : AccessibilityService() {
+
+              private lateinit var wm: WindowManager
+              private lateinit var panel: LinearLayout
+              private lateinit var lp: WindowManager.LayoutParams
+              private lateinit var pop: ScrollView
+              private lateinit var popBox: LinearLayout
+              private lateinit var status: TextView
+              private lateinit var bar: LinearLayout
+              private lateinit var grip: TextView
+              private lateinit var logo: ImageView
+              private lateinit var toggle: Button
+              private lateinit var count: TextView
+              private lateinit var copyB: Button
+              private lateinit var gearB: Button
+              private lateinit var stopB: Button
+              private lateinit var hiView: HiView
+              private lateinit var stripView: StripView
+              private lateinit var hiLp: WindowManager.LayoutParams
+              private lateinit var stripLp: WindowManager.LayoutParams
+
+              private var shown = false
+              private var overlayShown = false
+              private var popOpen = false
+              private var on = false
+              private var busy = false
+              private var refreshQueued = false
+              private val handler = Handler(Looper.getMainLooper())
+              private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+              private var job: Job? = null
+
+              private val chat = ArrayList<Msg>()
+              private val selected = LinkedHashSet<Int>()
+              private val reacted = HashSet<String>()
+              private var nextId = 1
+              private var lastPicked = -1
+              private var curTitle = ""
+              private var isGroup = false
+              private var gap = false
+              private var lastSnap: Snap? = null
+              private var imePkgs: Set<String>? = null
+              private val clearStatusRun = Runnable { setStatus("") }
+
+              // ---------------------------------------------------------------- lifecycle
+
+              override fun onServiceConnected() {
+                  super.onServiceConnected()
+                  wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+                  hiView = HiView(this)
+                  stripView = StripView(this)
+                  stripView.onTap = { id, range -> pick(id, range) }
+                  buildPanel()
+                  applyUi()
+                  val r = rootInActiveWindow
+                  if (isWa(r?.packageName?.toString())) showPanel()
+              }
+
+              override fun onInterrupt() {}
+
+              override fun onDestroy() {
+                  job?.cancel()
+                  scope.cancel()
+                  hideOverlay()
+                  hidePanel()
+                  super.onDestroy()
+              }
+
+              private fun isWa(pkg: String?): Boolean = pkg != null && pkg.startsWith("com.whatsapp")
+
+              private fun imePackages(): Set<String> {
+                  val cached = imePkgs
+                  if (cached != null) return cached
+                  val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                  val s = imm.enabledInputMethodList.map { it.packageName }.toSet()
+                  imePkgs = s
+                  return s
+              }
+
+              override fun onAccessibilityEvent(e: AccessibilityEvent?) {
+                  if (e == null) return
+                  val pkg = e.packageName?.toString()
+                  when (e.eventType) {
+                      AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+                          if (isWa(pkg)) {
+                              showPanel()
+                              if (on && !busy) scheduleRefresh()
+                          } else if (pkg != null && pkg != packageName &&
+                              pkg != "com.android.systemui" && pkg !in imePackages()
+                          ) {
+                              hidePanel()
+                              hideOverlay()
+                          }
+                      }
+                      AccessibilityEvent.TYPE_VIEW_CLICKED -> {
+                          if (isWa(pkg) && on && !busy && Prefs.bool(this, "clickAnywhere")) {
+                              val src = e.source
+                              if (src != null) {
+                                  val r = Rect()
+                                  src.getBoundsInScreen(r)
+                                  val cx = r.centerX()
+                                  val cy = r.centerY()
+                                  handler.postDelayed({ clickPick(cx, cy) }, 80)
+                              }
+                          }
+                      }
+                      AccessibilityEvent.TYPE_VIEW_SCROLLED,
+                      AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
+                          if (on && !busy && isWa(pkg)) scheduleRefresh()
+                      }
+                  }
+              }
+
+              private fun scheduleRefresh() {
+                  if (refreshQueued) return
+                  refreshQueued = true
+                  handler.postDelayed({
+                      refreshQueued = false
+                      if (on && !busy) refreshNow()
+                  }, 150)
+              }
+
+              // ---------------------------------------------------------------- قراءة الرسائل من الشاشة
+
+              private fun walkRoot(n: AccessibilityNodeInfo, w: TreeWalk, depth: Int) {
+                  if (depth > 40) return
+                  val id = n.viewIdResourceName ?: ""
+                  if (w.title.isEmpty() && id.contains("conversation_contact_name")) {
+                      w.title = n.text?.toString()?.trim() ?: ""
+                  }
+                  if (n.isScrollable) {
+                      val r = Rect()
+                      n.getBoundsInScreen(r)
+                      if (r.height() > w.listH) {
+                          w.listH = r.height()
+                          w.list = n
+                      }
+                  }
+                  for (i in 0 until n.childCount) {
+                      val c = n.getChild(i) ?: continue
+                      walkRoot(c, w, depth + 1)
+                  }
+              }
+
+              private fun scanRow(n: AccessibilityNodeInfo, r: RowScan, depth: Int) {
+                  if (depth > 25) return
+                  val id = n.viewIdResourceName ?: ""
+                  val t = n.text?.toString()?.trim() ?: ""
+                  if (id.endsWith(":id/message_text") || id.endsWith(":id/caption")) {
+                      if (r.body == null && t.isNotEmpty() && n.isVisibleToUser) {
+                          r.body = n
+                          r.bodyText = t
+                      }
+                  } else if (id.endsWith(":id/date")) {
+                      if (r.time.isEmpty()) r.time = t
+                  } else if (id.contains("name_in_group")) {
+                      if (r.sender.isEmpty()) r.sender = t
+                  } else if (id.contains("quoted_text")) {
+                      if (r.quoted.isEmpty()) r.quoted = t
+                  } else if (id.contains("date_divider")) {
+                      r.divider = t
+                  } else if (id.endsWith(":id/status")) {
+                      r.mine = true
+                  }
+                  val d = n.contentDescription?.toString() ?: ""
+                  if (d.isNotEmpty() && d.length < 30) {
+                      val clean = d.replace("\u200e", "").replace("\u200f", "")
+                      if (OUT_LABEL.matches(clean)) r.mine = true
+                  }
+                  for (i in 0 until n.childCount) {
+                      val c = n.getChild(i) ?: continue
+                      scanRow(c, r, depth + 1)
+                  }
+              }
+
+              /** يقرا الرسائل الظاهرة دلوقتي. بيرجّع null لو مش في شات. */
+              private fun readWindow(): Snap? {
+                  val root = rootInActiveWindow ?: return null
+                  if (!isWa(root.packageName?.toString())) return null
+                  val w = TreeWalk()
+                  walkRoot(root, w, 0)
+                  val list = w.list ?: return null
+                  val lr = Rect()
+                  list.getBoundsInScreen(lr)
+                  val out = ArrayList<Entry>()
+                  var date = ""
+                  var anyGroup = false
+                  for (i in 0 until list.childCount) {
+                      val row = list.getChild(i) ?: continue
+                      val rs = RowScan()
+                      scanRow(row, rs, 0)
+                      if (rs.divider.isNotEmpty()) date = rs.divider
+                      val body = rs.body ?: continue
+                      if (rs.sender.isNotEmpty()) anyGroup = true
+                      val rr = Rect()
+                      row.getBoundsInScreen(rr)
+                      out.add(Entry(rs.bodyText, rs.mine, rs.time, date, rs.sender, rs.quoted, body, rr))
+                  }
+                  return Snap(out, lr, list, w.title, anyGroup)
+              }
+
+              private fun sameMsg(m: Msg, e: Entry): Boolean {
+                  if (m.key == e.key) return true
+                  if (m.trunc || e.trunc) {
+                      return m.key.startsWith(e.key) || e.key.startsWith(m.key)
+                  }
+                  return false
+              }
+
+              /** يرجّع مكان أول عنصر من الشاشة جوه القايمة المسجلة لو في تداخل، وإلا null. */
+              private fun align(w: List<Entry>): Int? {
+                  if (w.isEmpty() || chat.isEmpty()) return null
+                  val need = minOf(2, w.size, chat.size)
+                  var best = 0
+                  var bestD: Int? = null
+                  for (d in -(w.size - 1) until chat.size) {
+                      val from = maxOf(0, -d)
+                      val to = minOf(w.size, chat.size - d)
+                      val cnt = to - from
+                      if (cnt < need || cnt <= best) continue
+                      var ok = true
+                      for (t in from until to) {
+                          if (!sameMsg(chat[d + t], w[t])) {
+                              ok = false
+                              break
+                          }
+                      }
+                      if (ok) {
+                          best = cnt
+                          bestD = d
+                      }
+                  }
+                  return bestD
+              }
+
+              private fun newMsg(e: Entry): Msg {
+                  val m = Msg(nextId)
+                  nextId++
+                  m.text = e.text
+                  m.key = e.key
+                  m.trunc = e.trunc
+                  m.mine = e.mine
+                  m.time = e.time
+                  m.date = e.date
+                  m.sender = e.sender
+                  m.quoted = e.quoted
+                  return m
+              }
+
+              private fun updateMsg(m: Msg, e: Entry) {
+                  if (m.trunc && !e.trunc) {
+                      m.text = e.text
+                      m.key = e.key
+                      m.trunc = false
+                  }
+                  if (e.mine) m.mine = true
+                  if (m.time.isEmpty()) m.time = e.time
+                  if (m.date.isEmpty()) m.date = e.date
+                  if (m.sender.isEmpty()) m.sender = e.sender
+                  if (m.quoted.isEmpty()) m.quoted = e.quoted
+              }
+
+              /** يدمج الرسائل الظاهرة في القايمة المرتبة للمحادثة (زي mergeList في الإضافة). */
+              private fun mergeEntries(w: List<Entry>): Boolean {
+                  if (w.isEmpty()) return true
+                  if (chat.isEmpty()) {
+                      for (e in w) {
+                          val m = newMsg(e)
+                          chat.add(m)
+                          e.msg = m
+                      }
+                      return true
+                  }
+                  val d = align(w) ?: return false
+                  val lsz = chat.size
+                  val pre = ArrayList<Msg>()
+                  for (t in w.indices) {
+                      val idx = d + t
+                      if (idx >= 0 && idx < lsz) {
+                          val m = chat[idx]
+                          updateMsg(m, w[t])
+                          w[t].msg = m
+                      } else {
+                          val m = newMsg(w[t])
+                          w[t].msg = m
+                          if (idx < 0) pre.add(m) else chat.add(m)
+                      }
+                  }
+                  if (pre.isNotEmpty()) chat.addAll(0, pre)
+                  return true
+              }
+
+              private fun idxOf(id: Int): Int {
+                  for (i in chat.indices) {
+                      if (chat[i].id == id) return i
+                  }
+                  return -1
+              }
+
+              private fun refreshNow(): Snap? {
+                  val snap = readWindow()
+                  if (snap == null) {
+                      hideOverlay()
+                      return null
+                  }
+                  if (snap.title.isNotEmpty()) {
+                      if (curTitle.isNotEmpty() && snap.title != curTitle && (chat.isNotEmpty() || selected.isNotEmpty())) {
+                          if (selected.isNotEmpty()) toast("اتمسح التحديد لأن المحادثة اتغيرت", false)
+                          chat.clear()
+                          selected.clear()
+                          lastPicked = -1
+                          isGroup = false
+                      }
+                      curTitle = snap.title
+                  }
+                  if (snap.group) isGroup = true
+                  val ok = mergeEntries(snap.entries)
+                  if (!ok) {
+                      gap = true
+                      setStatus("⚠ في فجوة: ارجع لورا شوية واسكرول أبطأ (أو اقفل التحديد وافتحه تاني لو غيرت الشات)")
+                  } else if (gap) {
+                      gap = false
+                      setStatus("")
+                  }
+                  lastSnap = snap
+                  updateOverlay(snap)
+                  applyUi()
+                  return snap
+              }
+
+              // ---------------------------------------------------------------- التحديد
+
+              private fun setOn(v: Boolean) {
+                  on = v
+                  if (v) {
+                      refreshNow()
+                  } else {
+                      selected.clear()
+                      chat.clear()
+                      lastPicked = -1
+                      curTitle = ""
+                      isGroup = false
+                      gap = false
+                      hideOverlay()
+                  }
+                  applyUi()
+                  if (popOpen) buildPop()
+              }
+
+              private fun pick(id: Int, range: Boolean) {
+                  val a = idxOf(id)
+                  val b = if (lastPicked >= 0) idxOf(lastPicked) else -1
+                  val state = !selected.contains(id)
+                  if (range && a >= 0 && b >= 0) {
+                      for (i in minOf(a, b)..maxOf(a, b)) {
+                          if (state) selected.add(chat[i].id) else selected.remove(chat[i].id)
+                      }
+                  } else {
+                      if (state) selected.add(id) else selected.remove(id)
+                  }
+                  lastPicked = id
+                  applyUi()
+                  val s = lastSnap
+                  if (s != null) updateOverlay(s)
+              }
+
+              private fun clickPick(x: Int, y: Int) {
+                  if (!on || busy) return
+                  val snap = refreshNow() ?: return
+                  for (e in snap.entries) {
+                      val m = e.msg ?: continue
+                      if (e.row.contains(x, y)) {
+                          pick(m.id, false)
+                          return
+                      }
+                  }
+              }
+
+              private fun selectWhere(f: (Msg) -> Boolean) {
+                  if (!on) setOn(true)
+                  refreshNow()
+                  for (m in chat) {
+                      if (f(m)) selected.add(m.id)
+                  }
+                  applyUi()
+                  val s = lastSnap
+                  if (s != null) updateOverlay(s)
+              }
+
+              private fun clearSelection() {
+                  selected.clear()
+                  lastPicked = -1
+                  applyUi()
+                  val s = lastSnap
+                  if (s != null) updateOverlay(s)
+              }
+
+              // ---------------------------------------------------------------- الإخراج
+
+              /** اسم المرسل للرسائل اللي مفيهاش اسم (واتساب بيخفيه في الرسائل المتتالية). */
+              private fun resolveSenders() {
+                  var lastIn = ""
+                  for (m in chat) {
+                      if (m.mine) {
+                          lastIn = ""
+                          continue
+                      }
+                      if (m.sender.isNotEmpty()) {
+                          lastIn = m.sender
+                      } else if (isGroup) {
+                          if (lastIn.isNotEmpty()) m.sender = lastIn
+                      } else if (curTitle.isNotEmpty()) {
+                          m.sender = curTitle
+                      }
+                  }
+              }
+
+              private fun cleanText(m: Msg): String {
+                  return RM_RE.replace(m.text, "").trim()
+              }
+
+              private fun buildOutput(): Out {
+                  resolveSenders()
+                  val sep = Prefs.str(this, "sep", Prefs.SEP_LINE).replace("\\n", "\n")
+                  val showSender = Prefs.bool(this, "sender")
+                  val showTime = Prefs.bool(this, "time")
+                  val numbered = Prefs.bool(this, "number")
+                  val showQuoted = Prefs.bool(this, "quoted")
+                  val lines = ArrayList<String>()
+                  var skipped = 0
+                  for (m in chat) {
+                      if (!selected.contains(m.id)) continue
+                      val body = cleanText(m)
+                      if (body.isEmpty()) {
+                          skipped++
+                          continue
+                      }
+                      val sb = StringBuilder()
+                      if (numbered) sb.append(lines.size + 1).append(". ")
+                      if (showTime && m.time.isNotEmpty()) {
+                          sb.append("[")
+                          sb.append(m.time)
+                          if (m.date.isNotEmpty()) sb.append(", ").append(m.date)
+                          sb.append("] ")
+                      }
+                      if (showSender) {
+                          val s = if (m.mine) "أنا" else m.sender
+                          if (s.isNotEmpty()) sb.append(s).append(": ")
+                      }
+                      sb.append(body)
+                      var line = sb.toString()
+                      if (showQuoted && m.quoted.isNotEmpty()) line = "↪ " + m.quoted + "\n" + line
+                      lines.add(line)
+                  }
+                  return Out(lines.joinToString(sep), lines.size, skipped)
+              }
+
+              private fun writeClipboard(text: String): Boolean {
+                  return try {
+                      val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                      cm.setPrimaryClip(ClipData.newPlainText("messages", text))
+                      true
+                  } catch (e: Exception) {
+                      false
+                  }
+              }
+
+              private fun saveTxt(text: String): Boolean {
+                  val name = "whatsapp-messages-" + System.currentTimeMillis() + ".txt"
+                  try {
+                      if (Build.VERSION.SDK_INT >= 29) {
+                          val v = ContentValues()
+                          v.put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                          v.put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
+                          v.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                          val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v)
+                          if (uri == null) return false
+                          val os = contentResolver.openOutputStream(uri)
+                          if (os == null) return false
+                          os.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+                          return true
+                      }
+                      val i = Intent(Intent.ACTION_SEND)
+                      i.type = "text/plain"
+                      i.putExtra(Intent.EXTRA_TEXT, text)
+                      val ch = Intent.createChooser(i, "حفظ / مشاركة")
+                      ch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                      startActivity(ch)
+                      return true
+                  } catch (e: Exception) {
+                      return false
+                  }
+              }
+
+              private fun toast(msg: String, long: Boolean) {
+                  Toast.makeText(applicationContext, msg, if (long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show()
+              }
+
+              // ---------------------------------------------------------------- فتح "اقرأ المزيد" والسكرول
+
+              private fun limitBottomOf(list: Rect): Int {
+                  val loc = IntArray(2)
+                  panel.getLocationOnScreen(loc)
+                  val b = if (shown && loc[1] > list.centerY()) minOf(list.bottom, loc[1]) else list.bottom
+                  return b - 6
+              }
+
+              private fun truncIds(): List<Int> {
+                  val out = ArrayList<Int>()
+                  for (m in chat) {
+                      if (m.trunc && selected.contains(m.id)) out.add(m.id)
+                  }
+                  return out
+              }
+
+              private suspend fun clickReadMore(e: Entry) {
+                  var a: AccessibilityNodeInfo? = e.body
+                  var up = 0
+                  var ok = false
+                  while (a != null && up < 4 && !ok) {
+                      if (a.isClickable) ok = a.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                      a = a.parent
+                      up++
+                  }
+                  if (!ok) {
+                      val r = Rect()
+                      e.body.getBoundsInScreen(r)
+                      val p = Path()
+                      p.moveTo(r.right - dp(40).toFloat(), r.bottom - dp(10).toFloat())
+                      gesture(p, 60)
+                  }
+              }
+
+              private suspend fun expandVisible(ids: Set<Int>) {
+                  val tries = HashMap<Int, Int>()
+                  var backed = false
+                  for (round in 0 until 40) {
+                      val snap = readWindow()
+                      if (snap == null) {
+                          if (!backed) {
+                              backed = true
+                              performGlobalAction(GLOBAL_ACTION_BACK)
+                              delay(700)
+                              continue
+                          }
+                          return
+                      }
+                      if (!mergeEntries(snap.entries)) return
+                      var target: Entry? = null
+                      for (en in snap.entries) {
+                          val m = en.msg ?: continue
+                          val n = tries[m.id] ?: 0
+                          if (ids.contains(m.id) && m.trunc && en.trunc && n < 2) {
+                              target = en
+                              break
+                          }
+                      }
+                      if (target == null) return
+                      val tm = target.msg
+                      if (tm != null) tries[tm.id] = (tries[tm.id] ?: 0) + 1
+                      clickReadMore(target)
+                      delay(700)
+                  }
+              }
+
+              private suspend fun bringIntoView(id: Int, steps: Int): Boolean {
+                  var same = 0
+                  var lastFirst = -1
+                  for (i in 0 until steps) {
+                      val snap = readWindow() ?: return false
+                      if (!mergeEntries(snap.entries)) return false
+                      for (en in snap.entries) {
+                          val m = en.msg
+                          if (m != null && m.id == id) return true
+                      }
+                      val vis = ArrayList<Msg>()
+                      for (en in snap.entries) {
+                          val m = en.msg
+                          if (m != null) vis.add(m)
+                      }
+                      if (vis.isEmpty()) return false
+                      val first = chat.indexOf(vis[0])
+                      val target = idxOf(id)
+                      if (target < 0) return false
+                      val older = target < first
+                      if (first == lastFirst) {
+                          same++
+                          if (same >= 3) return false
+                      } else {
+                          same = 0
+                      }
+                      lastFirst = first
+                      swipe(snap.listRect, limitBottomOf(snap.listRect), older)
+                      delay(450)
+                  }
+                  return false
+              }
+
+              /** قبل النسخ: يفتح الرسائل الطويلة المقصوصة (ويسكرول لها لو مش ظاهرة) ويرجع مكانك. */
+              private suspend fun ensureFull(): Int {
+                  val ids = HashSet<Int>(truncIds())
+                  if (ids.isEmpty()) return 0
+                  setStatus("بجهّز ${ids.size} رسالة طويلة… (متحركش)", true)
+                  expandVisible(ids)
+                  val missing = truncIds()
+                  if (missing.isNotEmpty()) {
+                      var anchor = -1
+                      val ls = lastSnap
+                      if (ls != null) {
+                          val vis = ArrayList<Msg>()
+                          for (en in ls.entries) {
+                              val m = en.msg
+                              if (m != null) vis.add(m)
+                          }
+                          if (vis.isNotEmpty()) anchor = vis[vis.size / 2].id
+                      }
+                      val sorted = missing.sortedByDescending { idxOf(it) }
+                      for (id in sorted) {
+                          val i = idxOf(id)
+                          if (i < 0 || !chat[i].trunc) continue
+                          if (bringIntoView(id, 80)) {
+                              val one = HashSet<Int>()
+                              one.add(id)
+                              expandVisible(one)
+                          }
+                      }
+                      if (anchor >= 0) bringIntoView(anchor, 80)
+                  }
+                  setStatus("")
+                  return truncIds().size
+              }
+
+              // ---------------------------------------------------------------- النسخ / التنزيل
+
+              private fun onCopy() {
+                  if (busy || selected.isEmpty()) return
+                  job = scope.launch { doCopy() }
+              }
+
+              private fun onDownload() {
+                  if (busy || selected.isEmpty()) return
+                  job = scope.launch { doDownload() }
+              }
+
+              private fun beginBusy() {
+                  busy = true
+                  hideOverlay()
+                  applyUi()
+              }
+
+              private fun endBusy() {
+                  busy = false
+                  job = null
+                  applyUi()
+                  if (on) refreshNow()
+              }
+
+              private suspend fun doCopy() {
+                  beginBusy()
+                  try {
+                      val partial = ensureFull()
+                      val out = buildOutput()
+                      if (out.count == 0) {
+                          toast("مفيش نص يتنسخ في الرسائل المحددة", true)
+                          return
+                      }
+                      if (!writeClipboard(out.text)) {
+                          toast("فشل النسخ، جرّب تنزيل كملف txt", true)
+                          return
+                      }
+                      var base = "✓ تم نسخ ${out.count} رسالة"
+                      if (out.skipped > 0) base += " (تخطي ${out.skipped} بدون نص)"
+                      if (partial > 0) base += " — تنبيه: $partial رسالة طويلة اتنسخت ناقصة"
+                      toast(base, partial > 0)
+                      val emoji = Prefs.str(this, "reactEmoji", "")
+                      if (emoji.isNotEmpty()) {
+                          val res = reactAll(emoji)
+                          toast("$base — $res", true)
+                      }
+                      if (Prefs.bool(this, "autoClear")) {
+                          selected.clear()
+                          lastPicked = -1
+                      }
+                  } finally {
+                      endBusy()
+                  }
+              }
+
+              private suspend fun doDownload() {
+                  beginBusy()
+                  try {
+                      val partial = ensureFull()
+                      val out = buildOutput()
+                      if (out.count == 0) {
+                          toast("مفيش نص يتنزل", true)
+                          return
+                      }
+                      if (saveTxt(out.text)) {
+                          val where = if (Build.VERSION.SDK_INT >= 29) " (في مجلد Download)" else ""
+                          toast("✓ تم تنزيل ${out.count} رسالة$where" + (if (partial > 0) " — $partial طويلة ناقصة" else ""), partial > 0)
+                      } else {
+                          toast("فشل التنزيل", true)
+                      }
+                  } finally {
+                      endBusy()
+                  }
+              }
+
+              private fun onStop() {
+                  job?.cancel()
+                  job = null
+                  busy = false
+                  setStatus("اتوقف")
+                  applyUi()
+                  if (on) refreshNow()
+              }
+
+              // ---------------------------------------------------------------- التفاعل بعد النسخ
+
+              private suspend fun reactAll(emoji: String): String {
+                  val ids = ArrayList<Int>()
+                  for (m in chat) {
+                      if (selected.contains(m.id)) ids.add(m.id)
+                  }
+                  val total = ids.size
+                  val idSet = HashSet<Int>(ids)
+                  val done = HashSet<Int>()
+                  var had = 0
+                  for (id in ids) {
+                      if (reacted.contains("$id|$emoji")) {
+                          done.add(id)
+                          had++
+                      }
+                  }
+                  var count = 0
+                  var iter = 0
+                  var stuck = 0
+                  var sameSwipe = 0
+                  var lastFirst = Int.MIN_VALUE
+                  var failed = false
+
+                  while (currentCoroutineContext().isActive && done.size < total && iter < 1500) {
+                      iter++
+                      val snap = readWindow()
+                      if (snap == null) {
+                          stuck++
+                          if (stuck > 10) break
+                          delay(600)
+                          continue
+                      }
+                      if (!mergeEntries(snap.entries)) {
+                          stuck++
+                          if (stuck > 6) break
+                          delay(500)
+                          continue
+                      }
+                      stuck = 0
+                      val list = snap.listRect
+                      val limitBottom = limitBottomOf(list)
+
+                      var acted = false
+                      for (en in snap.entries) {
+                          val m = en.msg ?: continue
+                          if (!idSet.contains(m.id) || done.contains(m.id)) continue
+                          val r = Rect()
+                          en.body.getBoundsInScreen(r)
+                          if (r.top < list.top + 6 || r.bottom > limitBottom) continue
+                          val ok = reactTo(en.body, emoji)
+                          if (!ok) {
+                              failed = true
+                              break
+                          }
+                          done.add(m.id)
+                          reacted.add("${m.id}|$emoji")
+                          count++
+                          setStatus("تفاعل $count / ${total - had}", true)
+                          delay(1100L + (0..500).random())
+                          acted = true
+                          break
+                      }
+                      if (failed) break
+                      if (acted) continue
+
+                      val vis = ArrayList<Msg>()
+                      for (en in snap.entries) {
+                          val m = en.msg
+                          if (m != null) vis.add(m)
+                      }
+                      if (vis.isEmpty()) break
+                      val firstIdx = chat.indexOf(vis[0])
+                      val lastIdx = chat.indexOf(vis[vis.size - 1])
+                      val todo = ArrayList<Int>()
+                      for (id in ids) {
+                          if (!done.contains(id)) todo.add(idxOf(id))
+                      }
+                      var above = false
+                      var below = false
+                      val inWin = ArrayList<Int>()
+                      for (i in todo) {
+                          if (i < firstIdx) above = true
+                          else if (i > lastIdx) below = true
+                          else inWin.add(i)
+                      }
+                      val older = when {
+                          above -> true
+                          below -> false
+                          inWin.isNotEmpty() -> inWin[0] <= (firstIdx + lastIdx) / 2
+                          else -> break
+                      }
+                      if (firstIdx == lastFirst) {
+                          sameSwipe++
+                          if (sameSwipe >= 3) break
+                      } else {
+                          sameSwipe = 0
+                      }
+                      lastFirst = firstIdx
+                      swipe(list, limitBottom, older)
+                      delay(900)
+                  }
+                  val res = "تفاعل $emoji: $count" +
+                      (if (had > 0) " ($had كانت متفاعل عليها)" else "") +
+                      (if (failed) " — مقدرتش أكمل (لو التحديد لسه شغال في واتساب اضغط رجوع)" else "")
+                  setStatus(res)
+                  return res
+              }
+
+              private suspend fun reactTo(node: AccessibilityNodeInfo, emoji: String): Boolean {
+                  var longClicked = false
+                  var a: AccessibilityNodeInfo? = node
+                  var up = 0
+                  while (a != null && up < 8) {
+                      if (a.isLongClickable) {
+                          longClicked = a.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK)
+                          break
+                      }
+                      a = a.parent
+                      up++
+                  }
+                  if (!longClicked) {
+                      val r = Rect()
+                      node.getBoundsInScreen(r)
+                      val p = Path()
+                      p.moveTo(r.left + r.width() / 4f, r.centerY().toFloat())
+                      p.lineTo(r.left + r.width() / 4f + 1f, r.centerY().toFloat() + 1f)
+                      gesture(p, 800)
+                  }
+                  delay(900)
+                  val target = findEmoji(rootInActiveWindow, emoji) ?: return false
+                  clickNode(target)
+                  delay(300)
+                  return true
+              }
+
+              private fun norm(s: CharSequence?): String {
+                  return s?.toString()?.replace("\uFE0F", "")?.trim() ?: ""
+              }
+
+              private fun labelOf(n: AccessibilityNodeInfo): String {
+                  val t = norm(n.text)
+                  return if (t.isNotEmpty()) t else norm(n.contentDescription)
+              }
+
+              /** يدور على شريط التفاعلات اللي ظهر فوق الرسالة ويرجّع زر الإيموجي المطلوب. */
+              private fun findEmoji(root: AccessibilityNodeInfo?, emoji: String): AccessibilityNodeInfo? {
+                  if (root == null) return null
+                  val want = norm(emoji)
+                  val groups = HashMap<AccessibilityNodeInfo, MutableList<AccessibilityNodeInfo>>()
+                  val loose = ArrayList<AccessibilityNodeInfo>()
+
+                  fun walk(n: AccessibilityNodeInfo) {
+                      val id = n.viewIdResourceName ?: ""
+                      if (!id.endsWith(":id/message_text") && !id.endsWith(":id/caption")) {
+                          val label = labelOf(n)
+                          if (Prefs.EMOJIS.contains(label)) {
+                              loose.add(n)
+                              val p = n.parent
+                              if (p != null) {
+                                  var g = groups[p]
+                                  if (g == null) {
+                                      g = ArrayList<AccessibilityNodeInfo>()
+                                      groups[p] = g
+                                  }
+                                  g.add(n)
+                              }
+                          }
+                      }
+                      for (i in 0 until n.childCount) {
+                          val c = n.getChild(i) ?: continue
+                          walk(c)
+                      }
+                  }
+                  walk(root)
+
+                  var bestGroup: MutableList<AccessibilityNodeInfo>? = null
+                  for (g in groups.values) {
+                      if (g.size >= 3 && (bestGroup == null || g.size > bestGroup.size)) bestGroup = g
+                  }
+                  if (bestGroup != null) {
+                      for (n in bestGroup) {
+                          if (labelOf(n) == want) return n
+                      }
+                  }
+                  for (n in loose) {
+                      if (labelOf(n) == want) return n
+                  }
+                  return null
+              }
+
+              private suspend fun clickNode(n: AccessibilityNodeInfo) {
+                  var a: AccessibilityNodeInfo? = n
+                  var up = 0
+                  while (a != null && up < 6) {
+                      if (a.isClickable && a.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return
+                      a = a.parent
+                      up++
+                  }
+                  val r = Rect()
+                  n.getBoundsInScreen(r)
+                  val p = Path()
+                  p.moveTo(r.centerX().toFloat(), r.centerY().toFloat())
+                  gesture(p, 60)
+              }
+
+              private suspend fun swipe(list: Rect, bottom: Int, older: Boolean) {
+                  val top = list.top
+                  val h = (bottom - top).toFloat()
+                  val x = list.left + list.width() * 0.5f
+                  val y1 = if (older) top + h * 0.3f else top + h * 0.7f
+                  val y2 = if (older) top + h * 0.7f else top + h * 0.3f
+                  val p = Path()
+                  p.moveTo(x, y1)
+                  p.lineTo(x, y2)
+                  gesture(p, 500)
+              }
+
+              private suspend fun gesture(path: Path, duration: Long): Boolean =
+                  suspendCancellableCoroutine { cont ->
+                      val g = GestureDescription.Builder()
+                          .addStroke(GestureDescription.StrokeDescription(path, 0, duration))
+                          .build()
+                      val ok = dispatchGesture(g, object : AccessibilityService.GestureResultCallback() {
+                          override fun onCompleted(gestureDescription: GestureDescription?) {
+                              if (cont.isActive) cont.resume(true)
+                          }
+
+                          override fun onCancelled(gestureDescription: GestureDescription?) {
+                              if (cont.isActive) cont.resume(false)
+                          }
+                      }, null)
+                      if (!ok && cont.isActive) cont.resume(false)
+                  }
+
+              // ---------------------------------------------------------------- تشخيص
+
+              private fun dump(n: AccessibilityNodeInfo, depth: Int, sb: StringBuilder) {
+                  if (sb.length > 8500 || depth > 7) return
+                  val r = Rect()
+                  n.getBoundsInScreen(r)
+                  var cd = n.contentDescription?.toString() ?: ""
+                  cd = if (cd.length > 24) "<long>" else cd.replace("\n", " ")
+                  sb.append("  ".repeat(depth))
+                  sb.append(n.className?.toString()?.substringAfterLast('.') ?: "?")
+                  sb.append(" id=").append((n.viewIdResourceName ?: "").substringAfter(":id/"))
+                  sb.append(" tl=").append(n.text?.length ?: 0)
+                  sb.append(" cd=").append(cd)
+                  sb.append(" [").append(r.left).append(",").append(r.top).append(",").append(r.right).append(",").append(r.bottom).append("]")
+                  if (n.isClickable) sb.append(" C")
+                  if (n.isLongClickable) sb.append(" L")
+                  sb.append("\n")
+                  for (i in 0 until n.childCount) {
+                      val c = n.getChild(i) ?: continue
+                      dump(c, depth + 1, sb)
+                  }
+              }
+
+              /** بينسخ تقرير عن شكل الرسائل في واتساب (من غير نص الرسائل) عشان نظبط التطبيق عليه. */
+              private fun onDiag() {
+                  val sb = StringBuilder()
+                  sb.append("== Geno app diag v1 ==\n")
+                  sb.append("sdk=").append(Build.VERSION.SDK_INT).append(" model=").append(Build.MODEL).append("\n")
+                  val snap = readWindow()
+                  if (snap == null) {
+                      sb.append("مفيش شات مفتوح أو مش لاقي القايمة\n")
+                  } else {
+                      sb.append("titleLen=").append(snap.title.length).append(" group=").append(snap.group)
+                      sb.append(" rows=").append(snap.list.childCount).append(" entries=").append(snap.entries.size).append("\n")
+                      var shownRows = 0
+                      for (i in 0 until snap.list.childCount) {
+                          if (shownRows >= 3) break
+                          val row = snap.list.getChild(i) ?: continue
+                          val rs = RowScan()
+                          scanRow(row, rs, 0)
+                          sb.append("-- row ").append(i).append(" body=").append(rs.body != null)
+                          sb.append(" mine=").append(rs.mine).append(" time=").append(rs.time.isNotEmpty())
+                          sb.append(" sender=").append(rs.sender.isNotEmpty()).append(" quoted=").append(rs.quoted.isNotEmpty())
+                          sb.append(" divider=").append(rs.divider.isNotEmpty()).append("\n")
+                          dump(row, 1, sb)
+                          shownRows++
+                      }
+                  }
+                  val ok = writeClipboard(sb.toString().take(9000))
+                  toast(if (ok) "✓ اتنسخ تقرير التشخيص — الصقه في الشات معايا" else "فشل نسخ التقرير", true)
+              }
+
+              // ---------------------------------------------------------------- واجهة (مربعات التحديد)
+
+              private fun overlayParams(x: Int, y: Int, w: Int, h: Int, touchable: Boolean): WindowManager.LayoutParams {
+                  var f = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                      WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                      WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                      WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                  if (!touchable) f = f or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                  val p = WindowManager.LayoutParams(
+                      w, h,
+                      WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                      f,
+                      PixelFormat.TRANSLUCENT
+                  )
+                  p.gravity = Gravity.TOP or Gravity.LEFT
+                  p.x = x
+                  p.y = y
+                  return p
+              }
+
+              private fun updateOverlay(snap: Snap) {
+                  if (busy || !on) {
+                      hideOverlay()
+                      return
+                  }
+                  val items = ArrayList<Pair<Rect, Int>>()
+                  for (e in snap.entries) {
+                      val m = e.msg ?: continue
+                      items.add(Pair(e.row, m.id))
+                  }
+                  val lr = snap.listRect
+                  val sw = dp(40)
+                  val right = Prefs.str(this, "side", "right") == "right"
+                  val sx = if (right) lr.right - sw else lr.left
+                  val hx = lr.left
+                  val hy = lr.top
+                  val hw = lr.width()
+                  val hh = lr.height()
+                  if (hw <= 0 || hh <= 0) return
+                  if (!overlayShown) {
+                      hiLp = overlayParams(hx, hy, hw, hh, false)
+                      stripLp = overlayParams(sx, hy, sw, hh, true)
+                      try {
+                          wm.addView(hiView, hiLp)
+                          wm.addView(stripView, stripLp)
+                          overlayShown = true
+                      } catch (e: Exception) {
+                          try {
+                              wm.removeView(hiView)
+                          } catch (e2: Exception) {
+                          }
+                          return
+                      }
+                      if (shown) {
+                          try {
+                              wm.removeView(panel)
+                              wm.addView(panel, lp)
+                          } catch (e: Exception) {
+                          }
+                      }
+                  } else {
+                      if (hiLp.x != hx || hiLp.y != hy || hiLp.width != hw || hiLp.height != hh) {
+                          hiLp.x = hx
+                          hiLp.y = hy
+                          hiLp.width = hw
+                          hiLp.height = hh
+                          try {
+                              wm.updateViewLayout(hiView, hiLp)
+                          } catch (e: Exception) {
+                          }
+                      }
+                      if (stripLp.x != sx || stripLp.y != hy || stripLp.width != sw || stripLp.height != hh) {
+                          stripLp.x = sx
+                          stripLp.y = hy
+                          stripLp.width = sw
+                          stripLp.height = hh
+                          try {
+                              wm.updateViewLayout(stripView, stripLp)
+                          } catch (e: Exception) {
+                          }
+                      }
+                  }
+                  hiView.items = items
+                  hiView.selectedIds = HashSet<Int>(selected)
+                  hiView.listTop = lr.top
+                  hiView.listBottom = lr.bottom
+                  hiView.invalidate()
+                  stripView.items = items
+                  stripView.selectedIds = HashSet<Int>(selected)
+                  stripView.listTop = lr.top
+                  stripView.listBottom = lr.bottom
+                  stripView.invalidate()
+              }
+
+              private fun hideOverlay() {
+                  if (!overlayShown) return
+                  try {
+                      wm.removeView(stripView)
+                  } catch (e: Exception) {
+                  }
+                  try {
+                      wm.removeView(hiView)
+                  } catch (e: Exception) {
+                  }
+                  overlayShown = false
+              }
+
+              // ---------------------------------------------------------------- اللوحة العايمة
+
+              private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
+              private fun setStatus(t: String, sticky: Boolean = false) {
+                  if (!::status.isInitialized) return
+                  handler.removeCallbacks(clearStatusRun)
+                  status.text = t
+                  status.visibility = if (t.isEmpty()) View.GONE else View.VISIBLE
+                  if (t.isNotEmpty() && !sticky) handler.postDelayed(clearStatusRun, 5000)
+              }
+
+              private fun mkBtn(label: String, bgColor: String, onClick: () -> Unit): Button {
+                  val b = Button(this)
+                  b.text = label
+                  b.textSize = 12f
+                  b.isAllCaps = false
+                  b.minHeight = 0
+                  b.minimumHeight = 0
+                  b.minWidth = 0
+                  b.minimumWidth = 0
+                  b.setPadding(dp(8), dp(7), dp(8), dp(7))
+                  b.setTextColor(Color.WHITE)
+                  val g = GradientDrawable()
+                  g.setColor(Color.parseColor(bgColor))
+                  g.cornerRadius = dp(8).toFloat()
+                  b.background = g
+                  b.setOnClickListener { onClick() }
+                  return b
+              }
+
+              private fun addBar(v: View) {
+                  val p = LinearLayout.LayoutParams(
+                      LinearLayout.LayoutParams.WRAP_CONTENT,
+                      LinearLayout.LayoutParams.WRAP_CONTENT
+                  )
+                  p.setMargins(dp(2), 0, dp(2), 0)
+                  bar.addView(v, p)
+              }
+
+              private fun buildPanel() {
+                  val dm = resources.displayMetrics
+                  panel = LinearLayout(this)
+                  panel.orientation = LinearLayout.VERTICAL
+                  val bg = GradientDrawable()
+                  bg.setColor(Color.parseColor("#F2111B21"))
+                  bg.cornerRadius = dp(14).toFloat()
+                  panel.background = bg
+                  panel.setPadding(dp(6), dp(5), dp(6), dp(5))
+                  panel.layoutDirection = View.LAYOUT_DIRECTION_RTL
+
+                  pop = ScrollView(this)
+                  popBox = LinearLayout(this)
+                  popBox.orientation = LinearLayout.VERTICAL
+                  popBox.setPadding(dp(4), 0, dp(4), dp(6))
+                  pop.addView(popBox)
+                  pop.visibility = View.GONE
+                  val popH = minOf((dm.heightPixels * 0.5f).toInt(), dp(380))
+                  panel.addView(pop, LinearLayout.LayoutParams(dp(260), popH))
+
+                  status = TextView(this)
+                  status.setTextColor(Color.WHITE)
+                  status.textSize = 12f
+                  status.setPadding(dp(4), dp(2), dp(4), dp(4))
+                  status.visibility = View.GONE
+                  panel.addView(status, LinearLayout.LayoutParams(dp(260), LinearLayout.LayoutParams.WRAP_CONTENT))
+
+                  bar = LinearLayout(this)
+                  bar.orientation = LinearLayout.HORIZONTAL
+                  bar.gravity = Gravity.CENTER_VERTICAL
+
+                  grip = TextView(this)
+                  grip.text = "⋮⋮"
+                  grip.textSize = 14f
+                  grip.setTextColor(Color.parseColor("#8696A0"))
+                  grip.setPadding(dp(8), dp(6), dp(8), dp(6))
+                  bar.addView(grip)
+
+                  logo = ImageView(this)
+                  logo.setImageResource(R.drawable.ic_launcher)
+                  logo.setOnClickListener { setOn(!on) }
+                  logo.setOnLongClickListener {
+                      togglePop()
+                      true
+                  }
+                  bar.addView(logo, LinearLayout.LayoutParams(dp(32), dp(32)))
+
+                  toggle = mkBtn("تحديد رسائل", "#2A3942") { setOn(!on) }
+                  addBar(toggle)
+
+                  count = TextView(this)
+                  count.setTextColor(Color.parseColor("#E9EDEF"))
+                  count.textSize = 12f
+                  count.setPadding(dp(4), 0, dp(4), 0)
+                  addBar(count)
+
+                  copyB = mkBtn("نسخ", "#00A884") { onCopy() }
+                  addBar(copyB)
+
+                  gearB = mkBtn("⚙", "#2A3942") { togglePop() }
+                  addBar(gearB)
+
+                  stopB = mkBtn("إيقاف", "#D93025") { onStop() }
+                  addBar(stopB)
+
+                  panel.addView(bar)
+
+                  lp = WindowManager.LayoutParams(
+                      WindowManager.LayoutParams.WRAP_CONTENT,
+                      WindowManager.LayoutParams.WRAP_CONTENT,
+                      WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                      PixelFormat.TRANSLUCENT
+                  )
+                  lp.gravity = Gravity.BOTTOM or Gravity.LEFT
+                  lp.x = Prefs.int(this, "px", (dm.widthPixels * 0.04f).toInt())
+                  lp.y = Prefs.int(this, "py", dp(110))
+
+                  grip.setOnTouchListener(object : View.OnTouchListener {
+                      var sx = 0f
+                      var sy = 0f
+                      var ox = 0
+                      var oy = 0
+
+                      override fun onTouch(v: View, ev: MotionEvent): Boolean {
+                          when (ev.action) {
+                              MotionEvent.ACTION_DOWN -> {
+                                  sx = ev.rawX
+                                  sy = ev.rawY
+                                  ox = lp.x
+                                  oy = lp.y
+                              }
+                              MotionEvent.ACTION_MOVE -> {
+                                  val m = resources.displayMetrics
+                                  lp.x = minOf(maxOf(0, ox + (ev.rawX - sx).toInt()), m.widthPixels - dp(60))
+                                  lp.y = minOf(maxOf(0, oy - (ev.rawY - sy).toInt()), m.heightPixels - dp(60))
+                                  if (shown) wm.updateViewLayout(panel, lp)
+                              }
+                              MotionEvent.ACTION_UP -> {
+                                  Prefs.setInt(this@WaService, "px", lp.x)
+                                  Prefs.setInt(this@WaService, "py", lp.y)
+                              }
+                          }
+                          return true
+                      }
+                  })
+              }
+
+              private fun applyUi() {
+                  if (!::panel.isInitialized) return
+                  val collapsed = Prefs.bool(this, "integrate") && !on && !busy
+                  toggle.visibility = if (collapsed || busy) View.GONE else View.VISIBLE
+                  toggle.text = if (on) "إنهاء" else "تحديد رسائل"
+                  count.visibility = if (on && !busy) View.VISIBLE else View.GONE
+                  count.text = "${selected.size} محددة"
+                  copyB.visibility = if (on && !busy) View.VISIBLE else View.GONE
+                  copyB.isEnabled = selected.isNotEmpty()
+                  copyB.alpha = if (selected.isEmpty()) 0.4f else 1f
+                  gearB.visibility = if (collapsed || busy) View.GONE else View.VISIBLE
+                  stopB.visibility = if (busy) View.VISIBLE else View.GONE
+                  if (busy && popOpen) {
+                      popOpen = false
+                      pop.visibility = View.GONE
+                  }
+              }
+
+              private fun togglePop() {
+                  popOpen = !popOpen
+                  if (popOpen) {
+                      buildPop()
+                      pop.visibility = View.VISIBLE
+                  } else {
+                      pop.visibility = View.GONE
+                  }
+              }
+
+              private fun popRow(): LinearLayout {
+                  val row = LinearLayout(this)
+                  row.orientation = LinearLayout.HORIZONTAL
+                  return row
+              }
+
+              private fun addTo(row: LinearLayout, b: View) {
+                  val p = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                  p.setMargins(dp(2), 0, dp(2), 0)
+                  row.addView(b, p)
+              }
+
+              private fun buildPop() {
+                  popBox.removeAllViews()
+                  if (on) {
+                      popBox.addView(SettingsUi.section(this, "تحديد سريع"))
+                      val q = popRow()
+                      addTo(q, mkBtn("كل الرسائل", "#2A3942") { selectWhere { true } })
+                      addTo(q, mkBtn("رسائلي", "#2A3942") { selectWhere { it.mine } })
+                      addTo(q, mkBtn("رسائلهم", "#2A3942") { selectWhere { !it.mine } })
+                      popBox.addView(q)
+                  }
+                  popBox.addView(
+                      SettingsUi.build(this, false) {
+                          applyUi()
+                          val s = lastSnap
+                          if (s != null) updateOverlay(s)
+                      }
+                  )
+                  popBox.addView(SettingsUi.section(this, "أدوات"))
+                  val a = popRow()
+                  addTo(a, mkBtn("تنزيل txt", "#2A3942") { onDownload() })
+                  addTo(a, mkBtn("مسح التحديد", "#2A3942") { clearSelection() })
+                  popBox.addView(a)
+                  val b = popRow()
+                  addTo(b, mkBtn("تشخيص (ينسخ تقرير)", "#2A3942") { onDiag() })
+                  addTo(b, mkBtn("إعدادات كاملة", "#2A3942") { openApp() })
+                  popBox.addView(b)
+              }
+
+              private fun openApp() {
+                  val i = Intent(this, MainActivity::class.java)
+                  i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                  startActivity(i)
+              }
+
+              private fun showPanel() {
+                  if (shown) return
+                  try {
+                      wm.addView(panel, lp)
+                      shown = true
+                  } catch (e: Exception) {
+                  }
+              }
+
+              private fun hidePanel() {
+                  if (!shown) return
+                  try {
+                      wm.removeView(panel)
+                  } catch (e: Exception) {
+                  }
+                  shown = false
+              }
+          }
+          EOF
+
+      - name: Apply Geno update (range select + reactions fix)
         run: |
           cat > 'app/src/main/res/xml/accessibility_service_config.xml' <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
@@ -2090,3 +4106,28 @@
               }
           }
           EOF
+
+      - name: Install fixed signing key
+        run: |
+          mkdir -p ~/.android
+          echo "MIIKZgIBAzCCChAGCSqGSIb3DQEHAaCCCgEEggn9MIIJ+TCCBcAGCSqGSIb3DQEHAaCCBbEEggWtMIIFqTCCBaUGCyqGSIb3DQEMCgECoIIFQDCCBTwwZgYJKoZIhvcNAQUNMFkwOAYJKoZIhvcNAQUMMCsEFOLZ2BGk1/jZLg9RGXJZRgBL249dAgInEAIBIDAMBggqhkiG9w0CCQUAMB0GCWCGSAFlAwQBKgQQjhlueEC5qhjB9Qw6Rii7jwSCBNDSKFb49GB9U1XoK2JIOMopw4rOObGxniWhBBiByJ9d0bi5BPRp18fPHFhxwCUCoEMKC3nnKXKB6fZAv5c4mQ7QewoBk5+y9dB9mqeTpy1IK74GIAiX0GxEALTFOhNlp57VfnBlHJcQje9mGJsji7Lhu7D1hreKxTniJpNntHz39QjofCUnSXyUcKMltzHnpofDxR4LuJ8AO301SPhDVkj8Qjt0E/h9NbtRQ4gFJHuntR4uJEWSMkLv58nj6Whd0hZnVWxteuZpToYbNlkRzRa75JVLxaaVRGeiTjrcZzDkDf5u3tdNzqJ/JZV6gn4Nq+IxTjadCsc3szknOqDp8tIZFfRG+av3L+ueJMuWZFOrMG0wGovY0VKz6pxUbkPk+erB2lBlfPv0GEmn6Vf7WKtKQ5+vWwdU0f8K26CXTJBoM/PIFxK2RWr9lP0OMGl6I6yuTmFoFkf0Kf5AtyuC13/P2V11vlmULKEUVTIrkYQk4ACk64wIqWYZ2Ja+ucvLwHkaMqDpjFlFtQEcYbeiC0mjMtEcqcCJNQybT+xxkO3la8foEKO46KYaeC6ozudD21cpWMRS+pfUoHJQ8bgsAtJNWs/7t2jT+1nMq2njeihSZTOPHDhPS1G+wpa/EwWRlpCkyp72x7Jt3Jlw11rEy0wOL6tY1z4WJkbTAx9DrTtpjwZYIfB3Jh8Rv6ki7Mef6Zkgqtg6E4ssx+K/Imq+XdCk1Y6drjKC9aeHKoSrAZ4JPPmDBEekLFRzl+9Gafw2BQw08+vJXhcRv3eF3iCXCqBoHpI0q6l+XYBAcRED7+X0eVplOWJpn6YxLq476EvK3rhp8a6r5O+kYxuBuMcQTqjkOwftC33K3QPm8ZUI49dzBWyJGbAIP68eKSNJqOohYdrK16ddmXQIssu6pHaTbwJUVp6yJMqQn683Of6lpiO8ScOREbx7jKg+wuyD5zJvuSOY5PFhKt/cpS+UPlBAODbfyG8ptjFIAHJUVqKnSHLmojGnC1ggXu/ky9dS0pBQpSrk9v6+diMYZFo0/4yRcR3FpHtwFa/YfxX+NUd2mVeBaQ1P6qkPpb3ORdwYixaFIdA54YbEyKFoD/1xpW06+Rnu+5GtCgSdjPg5dTFpixK1oDGWazTRZYzH2+rh7rIyRh1ZLXRi6K0nP1I1OnEgjz4IjqtQrPwkjfU08JQqLREbbFYf21dfJYlAPBiRC7YY3FcykYOkwuvz+ztpcf80ZkGg5Ov+rwJuLpJ8O4wP+QwU7l5vvynPiN4kACqlWMnNPdZS3ByotQaHN3qf5GcMX77Da/ubgpUJjDaEwSwrirOhW7GjRbNyie1Cy1zrXWYvTHnmRktUc7nCWeBZfnjI8jiozDEs1QsFGw/8xcqCNMW5FRc5Zy5G/EyDpMB5I4joLBnY1Ean/ELgNenGaf+gaRBbQyeU9zDvwnBhw5iuq6KxpT/M7l9TKQRkbSQNauuP9Sep3qKOuRdRrDgVXDNQCbp0jHJK/gxqNeJkonXVgi70//vDYyV9jnlaOKocNAM4zCA8eQsLJUA/7wDhn/eQslFg1puJyph522P+sPLptz607Ue4DW8esSfU+oh/B46/ahd/0sFt/DqmEHmkcQQNzZ7NevCwoGsWP+7mMdsaCYvq7jFSMC0GCSqGSIb3DQEJFDEgHh4AYQBuAGQAcgBvAGkAZABkAGUAYgB1AGcAawBlAHkwIQYJKoZIhvcNAQkVMRQEElRpbWUgMTc5MTczMjI3NDIwNDCCBDEGCSqGSIb3DQEHBqCCBCIwggQeAgEAMIIEFwYJKoZIhvcNAQcBMGYGCSqGSIb3DQEFDTBZMDgGCSqGSIb3DQEFDDArBBS0LpIfcz2FrK+oNBIC1kMhGiXLnQICJxACASAwDAYIKoZIhvcNAgkFADAdBglghkgBZQMEASoEEHG9d1itJFG3OmmGIS4VbUSAggOg5mm1WKPW06zAsJFRbV6vCSMhFPQcvZhWipYh6ERvA+nIytWQCHkEcYdv8nc5AzOQ+UIjga3l0dLh+anZAJVB6unj0W4hXYoS7OtXpXz/mp94ySutZG5PvKyezv4/QZA191FYAWYt1dNNSgvTzVM2oa6kOvLFVPuSk+KEonf5y/kPBqtToQBNsVq7zgC/V+Vru6gpxtXi5TWsGaxh48RMAKLt0B1MAOQ67jK+10Dtx5anAODMcprncqnlX7yDm2vNosMCG4TNi9aTd/do/LDgL5MN5mpHbHwARyQmv2qhIxohzs+/uyZfQoUZ5cyvMyjqHjsAB8pu7N/kvI0nAf6pirF7WOfmVGAugAs5Q70jaOv+pu/KQ1WYVynNil0bdaccGhr61MuLcIQUC/H7280lM+v0olqBfA6qpjnZkAP4qlcpCdsJ6/OLImBWH3XAPW7/zEIL6ZG9bL8m47+jI1K/Z+eLRg8sKERooHkOSy7GFO9AgmEOvjfrF0cEyfBj3GXjo+QmAMY5nmxqfivBzcXMF6j/tA/ffuXjM6px/ZA+zIE4zBJxYB2rCmJtVKUgmdpwPCvzhlSb1W85QJ9r52ch7iD+lVAUvlMhaqdb1faTwRlIvIVTD4UD0t1HjvQ4dYOyIqr8DgMSlzMQOEneadBC6LQJvbU90LJrEwCXadPjisq9Jy4E8QLl+6OxrpdnRllpj/bOoOgZR/VQ02r31YNr2woFfuuEzMLEabXvMwpoQFEdmM4kVl8UFQtBEEwUap/Ohx3pnbJkDuHQUZakMh6yqjLhayB57xB/b42542NX9Co2EaJ1Ghj0BrWcVWCBHTFNYEg21vONCWcBYCZ01CY8QQIht7CPJOMGnOnWqJ2cPpvUnD3R4CDw4RUGcVB/GITcQ8UzCMddANJfH2L2Z/fQQ+XCl2wyPE6kaAeISGjPgLn9y/9Mcx155JTZssP/FbMJpXqpDfetC4o8WBDixGt+byBBiIiHCwcQ3Hli7k2a/2xh2rjoq2RTYL0ltuT/i8XRLr7Ao3itUwQHgSZGAFJo0ENAcSUmPu6ypvOsKz/wFTIl00DmwQZVCCih7l82IbsdirXf1Ayxh2++G9gsf3u17RUtKkRrlW1E/5NzrzOJ6iqFZuIBOpUJJ1YYH9d490fMeYvclsgrRSkSIuK2PrFa/QWpQabnq4q2TIzkVD9vrr6dfu8WfO5n/2BV4+8IHRzqI+URlm5YP8ewbYBUrUPjhjBNMDEwDQYJYIZIAWUDBAIBBQAEIGRa4Ri4I9WpeuqWY2ouAckgnr9dcZ4PxFA1AVSGLCkUBBR/V3AD+eiw9MUzg5ZzO2NTZigoowICJxA=" | base64 -d > ~/.android/debug.keystore
+          keytool -list -keystore ~/.android/debug.keystore -storepass android
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 8.7
+
+      - name: Build debug APK
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Publish APK to Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Geno - نسخة ${{ github.run_number }}
+          files: app/build/outputs/apk/debug/app-debug.apk
