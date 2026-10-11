@@ -1,465 +1,19 @@
-name: Build APK
-
-on:
-  push:
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: Create project files
+- name: Apply Geno update (range select + reactions fix)
         run: |
-          cat > 'settings.gradle.kts' <<'EOF'
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          rootProject.name = "ChatCopier"
-          include(":app")
-          EOF
-          cat > 'build.gradle.kts' <<'EOF'
-          plugins {
-              id("com.android.application") version "8.5.2" apply false
-              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
-          }
-          EOF
-          cat > 'gradle.properties' <<'EOF'
-          org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
-          kotlin.code.style=official
-          android.useAndroidX=false
-          EOF
-          mkdir -p 'app'
-          cat > 'app/build.gradle.kts' <<'EOF'
-          plugins {
-              id("com.android.application")
-              id("org.jetbrains.kotlin.android")
-          }
-
-          android {
-              namespace = "com.example.chatcopier"
-              compileSdk = 34
-
-              defaultConfig {
-                  applicationId = "com.example.chatcopier"
-                  minSdk = 26
-                  targetSdk = 34
-                  versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-                  versionName = "2.0"
-              }
-
-              compileOptions {
-                  sourceCompatibility = JavaVersion.VERSION_17
-                  targetCompatibility = JavaVersion.VERSION_17
-              }
-              kotlinOptions {
-                  jvmTarget = "17"
-              }
-          }
-
-          dependencies {
-              implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-          }
-          EOF
-          mkdir -p 'app/src/main'
-          cat > 'app/src/main/AndroidManifest.xml' <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-              <application
-                  android:allowBackup="false"
-                  android:icon="@drawable/ic_launcher"
-                  android:label="@string/app_name"
-                  android:supportsRtl="true"
-                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
-
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-
-                  <service
-                      android:name=".WaService"
-                      android:exported="true"
-                      android:label="@string/app_name"
-                      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-                      <intent-filter>
-                          <action android:name="android.accessibilityservice.AccessibilityService" />
-                      </intent-filter>
-                      <meta-data
-                          android:name="android.accessibilityservice"
-                          android:resource="@xml/accessibility_service_config" />
-                  </service>
-              </application>
-          </manifest>
-          EOF
-          mkdir -p 'app/src/main/res/xml'
           cat > 'app/src/main/res/xml/accessibility_service_config.xml' <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
               android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewScrolled|typeViewClicked|typeViewLongClicked"
               android:accessibilityFeedbackType="feedbackGeneric"
-              android:accessibilityFlags="flagReportViewIds|flagIncludeNotImportantViews"
+              android:accessibilityFlags="flagReportViewIds|flagIncludeNotImportantViews|flagRetrieveInteractiveWindows"
               android:canRetrieveWindowContent="true"
               android:canPerformGestures="true"
-              android:notificationTimeout="100"
+              android:notificationTimeout="50"
               android:description="@string/service_desc" />
           EOF
-          mkdir -p 'app/src/main/res/values'
-          cat > 'app/src/main/res/values/strings.xml' <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <string name="app_name">Geno</string>
-              <string name="service_desc">نفس إضافة Geno لكروم: يعرض لوحة عايمة داخل واتساب لتحديد الرسائل ونسخ نصوصها (مع الفاصل وخيارات النسخ والتفاعل بعد النسخ).</string>
-          </resources>
-          EOF
-          mkdir -p 'app/src/main/res/drawable'
-          cat > 'app/src/main/res/drawable/ic_launcher.xml' <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              xmlns:aapt="http://schemas.android.com/aapt"
-              android:width="108dp"
-              android:height="108dp"
-              android:viewportWidth="1024"
-              android:viewportHeight="1024">
-              <path android:pathData="M232,0 H792 A232,232 0 0 1 1024,232 V792 A232,232 0 0 1 792,1024 H232 A232,232 0 0 1 0,792 V232 A232,232 0 0 1 232,0 Z">
-                  <aapt:attr name="android:fillColor">
-                      <gradient
-                          android:startX="0"
-                          android:startY="0"
-                          android:endX="1024"
-                          android:endY="1024"
-                          android:type="linear">
-                          <item android:color="#16DEAA" android:offset="0.0" />
-                          <item android:color="#005C4A" android:offset="1.0" />
-                      </gradient>
-                  </aapt:attr>
-              </path>
-              <path
-                  android:pathData="M762,500 A250,250 0 1 1 703.5,339.3"
-                  android:strokeColor="#FFFFFF"
-                  android:strokeWidth="100"
-                  android:strokeLineCap="round" />
-              <path
-                  android:fillColor="#FFFFFF"
-                  android:pathData="M522,452 H812 V548 H522 Z" />
-              <path
-                  android:fillColor="#FFFFFF"
-                  android:pathData="M447.3,741.5 L250.4,761.6 L277.1,585.5 Z" />
-          </vector>
-          EOF
-          mkdir -p 'app/src/main/java/com/example/chatcopier'
-          cat > 'app/src/main/java/com/example/chatcopier/MainActivity.kt' <<'EOF'
-          package com.example.chatcopier
-
-          import android.app.Activity
-          import android.content.Intent
-          import android.graphics.Color
-          import android.net.Uri
-          import android.os.Bundle
-          import android.provider.Settings
-          import android.view.View
-          import android.widget.Button
-          import android.widget.LinearLayout
-          import android.widget.ScrollView
-          import android.widget.TextView
-
-          class MainActivity : Activity() {
-              override fun onCreate(savedInstanceState: Bundle?) {
-                  super.onCreate(savedInstanceState)
-                  val pad = (18 * resources.displayMetrics.density).toInt()
-
-                  val box = LinearLayout(this)
-                  box.orientation = LinearLayout.VERTICAL
-                  box.setPadding(pad, pad * 2, pad, pad)
-                  box.layoutDirection = View.LAYOUT_DIRECTION_RTL
-
-                  val title = TextView(this)
-                  title.textSize = 22f
-                  title.text = "Geno Extension"
-                  title.setTextColor(Color.parseColor("#06CF9C"))
-                  box.addView(title)
-
-                  val help = TextView(this)
-                  help.textSize = 14f
-                  help.setTextColor(Color.parseColor("#E9EDEF"))
-                  help.setPadding(0, pad / 2, 0, pad / 2)
-                  help.text = "نفس إضافة Geno بتاعة كروم، بس جوه واتساب على الموبايل.\n\n" +
-                      "1) دوس \"فتح إعدادات الإتاحة\" وفعّل خدمة \"Geno\".\n" +
-                      "   (لو الخيار رمادي: دوس \"إعدادات التطبيق\" ثم ⋮ ثم \"السماح بالإعدادات المقيّدة\"، وبعدها فعّل الخدمة.)\n\n" +
-                      "2) افتح أي شات في واتساب، هتلاقي شعار Geno صغير عايم (تقدر تسحبه من ⋮⋮).\n\n" +
-                      "3) دوس الشعار أو \"تحديد رسائل\": هتظهر دواير على طرف الشاشة جنب كل رسالة.\n\n" +
-                      "4) دوس على الدايرة لتحديد/إلغاء رسالة. ضغطة طويلة على الدايرة = تحديد كل الرسائل من آخر دايرة دوستها لحد هنا (زي Shift في الإضافة).\n\n" +
-                      "5) اسكرول براحة: التطبيق بيسجّل الرسائل اللي بتعدي قدامك (زي ما الإضافة بتفتكر الرسائل اللي ظهرت).\n\n" +
-                      "6) من ⚙: تحديد سريع (كل الرسائل / رسائلي / رسائلهم)، خيارات النسخ، الفاصل، التفاعل بعد النسخ، تنزيل txt، وتشخيص.\n\n" +
-                      "7) دوس \"نسخ\" والصق في أي مكان."
-                  box.addView(help)
-
-                  val b1 = Button(this)
-                  b1.text = "فتح إعدادات الإتاحة"
-                  b1.setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-                  box.addView(b1)
-
-                  val b2 = Button(this)
-                  b2.text = "إعدادات التطبيق"
-                  b2.setOnClickListener {
-                      startActivity(
-                          Intent(
-                              Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                              Uri.parse("package:" + packageName)
-                          )
-                      )
-                  }
-                  box.addView(b2)
-
-                  box.addView(SettingsUi.build(this, true) {})
-
-                  val scroll = ScrollView(this)
-                  scroll.setBackgroundColor(Color.parseColor("#111B21"))
-                  scroll.addView(box)
-                  setContentView(scroll)
-              }
-          }
-          EOF
-          mkdir -p 'app/src/main/java/com/example/chatcopier'
-          cat > 'app/src/main/java/com/example/chatcopier/Prefs.kt' <<'EOF'
-          package com.example.chatcopier
-
-          import android.content.Context
-
-          object Prefs {
-              // نفس فواصل الإضافة (\n بتتحول لسطر جديد وقت النسخ)
-              const val SEP_LINE = "\\n----------\\n"
-              const val SEP_STARS = "\\n**************\\n"
-              const val SEP_BLANK = "\\n\\n"
-              const val SEP_NL = "\\n"
-
-              // تفاعلات واتساب الافتراضية (بدون رمز التنسيق FE0F)
-              val EMOJIS = listOf("👍", "❤", "😂", "😮", "😢", "🙏")
-
-              private fun sp(c: Context) = c.getSharedPreferences("geno", Context.MODE_PRIVATE)
-
-              fun bool(c: Context, k: String): Boolean {
-                  val d = (k == "integrate")
-                  return sp(c).getBoolean(k, d)
-              }
-
-              fun setBool(c: Context, k: String, v: Boolean) {
-                  sp(c).edit().putBoolean(k, v).apply()
-              }
-
-              fun str(c: Context, k: String, d: String): String {
-                  return sp(c).getString(k, d) ?: d
-              }
-
-              fun setStr(c: Context, k: String, v: String) {
-                  sp(c).edit().putString(k, v).apply()
-              }
-
-              fun int(c: Context, k: String, d: Int): Int {
-                  return sp(c).getInt(k, d)
-              }
-
-              fun setInt(c: Context, k: String, v: Int) {
-                  sp(c).edit().putInt(k, v).apply()
-              }
-          }
-          EOF
-          mkdir -p 'app/src/main/java/com/example/chatcopier'
-          cat > 'app/src/main/java/com/example/chatcopier/SettingsUi.kt' <<'EOF'
-          package com.example.chatcopier
-
-          import android.content.Context
-          import android.graphics.Color
-          import android.graphics.drawable.GradientDrawable
-          import android.text.Editable
-          import android.text.TextWatcher
-          import android.view.View
-          import android.widget.Button
-          import android.widget.EditText
-          import android.widget.LinearLayout
-          import android.widget.Switch
-          import android.widget.TextView
-
-          object SettingsUi {
-              private const val TX = "#E9EDEF"
-              private const val MUT = "#8696A0"
-              private const val AC = "#00A884"
-              private const val BG3 = "#2A3942"
-
-              private fun dp(c: Context, v: Int): Int {
-                  return (v * c.resources.displayMetrics.density).toInt()
-              }
-
-              private fun round(c: Context, color: String, r: Int): GradientDrawable {
-                  val g = GradientDrawable()
-                  g.setColor(Color.parseColor(color))
-                  g.cornerRadius = dp(c, r).toFloat()
-                  return g
-              }
-
-              fun section(c: Context, t: String): TextView {
-                  val v = TextView(c)
-                  v.text = t
-                  v.textSize = 11f
-                  v.setTextColor(Color.parseColor(MUT))
-                  v.setPadding(0, dp(c, 10), 0, dp(c, 3))
-                  return v
-              }
-
-              private fun sw(c: Context, label: String, key: String, onChange: () -> Unit): Switch {
-                  val s = Switch(c)
-                  s.text = label
-                  s.textSize = 12f
-                  s.setTextColor(Color.parseColor(TX))
-                  s.isChecked = Prefs.bool(c, key)
-                  s.setPadding(0, dp(c, 4), 0, dp(c, 4))
-                  s.setOnCheckedChangeListener { _, v ->
-                      Prefs.setBool(c, key, v)
-                      onChange()
-                  }
-                  return s
-              }
-
-              private fun chips(
-                  c: Context,
-                  key: String,
-                  def: String,
-                  labels: List<String>,
-                  values: List<String>,
-                  onPick: () -> Unit
-              ): LinearLayout {
-                  val row = LinearLayout(c)
-                  row.orientation = LinearLayout.HORIZONTAL
-                  val btns = ArrayList<Button>()
-
-                  fun mark() {
-                      val cur = Prefs.str(c, key, def)
-                      for (i in btns.indices) {
-                          btns[i].background = round(c, if (values[i] == cur) AC else BG3, 14)
-                      }
-                  }
-
-                  for (i in labels.indices) {
-                      val b = Button(c)
-                      b.text = labels[i]
-                      b.textSize = 11f
-                      b.isAllCaps = false
-                      b.minHeight = 0
-                      b.minimumHeight = 0
-                      b.minWidth = 0
-                      b.minimumWidth = 0
-                      b.setPadding(dp(c, 4), dp(c, 6), dp(c, 4), dp(c, 6))
-                      b.setTextColor(Color.parseColor(TX))
-                      b.setOnClickListener {
-                          Prefs.setStr(c, key, values[i])
-                          mark()
-                          onPick()
-                      }
-                      val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                      lp.setMargins(dp(c, 2), 0, dp(c, 2), 0)
-                      row.addView(b, lp)
-                      btns.add(b)
-                  }
-                  mark()
-                  return row
-              }
-
-              /** full = true يضيف خانة كتابة الفاصل المخصص (بتشتغل بس في شاشة التطبيق). */
-              fun build(c: Context, full: Boolean, onChange: () -> Unit): LinearLayout {
-                  val box = LinearLayout(c)
-                  box.orientation = LinearLayout.VERTICAL
-                  box.layoutDirection = View.LAYOUT_DIRECTION_RTL
-
-                  box.addView(section(c, "خيارات النسخ"))
-                  box.addView(sw(c, "اسم المرسل", "sender", onChange))
-                  box.addView(sw(c, "الوقت والتاريخ", "time", onChange))
-                  box.addView(sw(c, "ترقيم الرسائل", "number", onChange))
-                  box.addView(sw(c, "الرسالة المقتبسة (الرد)", "quoted", onChange))
-                  box.addView(sw(c, "مسح التحديد بعد النسخ", "autoClear", onChange))
-                  box.addView(sw(c, "تحديد بالضغط على الرسالة (تجريبي)", "clickAnywhere", onChange))
-                  box.addView(sw(c, "دمج Geno (زرار صغير بدل اللوحة)", "integrate", onChange))
-
-                  box.addView(section(c, "مكان مربعات التحديد"))
-                  box.addView(chips(c, "side", "right", listOf("يمين", "يسار"), listOf("right", "left"), onChange))
-
-                  box.addView(section(c, "تفاعل بعد النسخ (الطرف التاني بيشوفه)"))
-                  val emLabels = ArrayList<String>()
-                  val emValues = ArrayList<String>()
-                  emLabels.add("بدون")
-                  emValues.add("")
-                  for (e in Prefs.EMOJIS) {
-                      emLabels.add(e)
-                      emValues.add(e)
-                  }
-                  box.addView(chips(c, "reactEmoji", "", emLabels, emValues, onChange))
-
-                  box.addView(section(c, "الفاصل بين الرسائل (\\n = سطر جديد)"))
-
-                  var et: EditText? = null
-                  if (full) {
-                      val e = EditText(c)
-                      e.setText(Prefs.str(c, "sep", Prefs.SEP_LINE))
-                      e.setTextColor(Color.parseColor(TX))
-                      e.textSize = 13f
-                      e.setSingleLine(true)
-                      e.layoutDirection = View.LAYOUT_DIRECTION_LTR
-                      e.addTextChangedListener(object : TextWatcher {
-                          override fun afterTextChanged(s: Editable?) {
-                              Prefs.setStr(c, "sep", s?.toString() ?: "")
-                          }
-
-                          override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-
-                          override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-                      })
-                      et = e
-                  }
-
-                  box.addView(
-                      chips(
-                          c, "sep", Prefs.SEP_LINE,
-                          listOf("خط فاصل", "نجوم", "سطر فاضي", "سطر"),
-                          listOf(Prefs.SEP_LINE, Prefs.SEP_STARS, Prefs.SEP_BLANK, Prefs.SEP_NL)
-                      ) {
-                          et?.setText(Prefs.str(c, "sep", Prefs.SEP_LINE))
-                          onChange()
-                      }
-                  )
-                  val editor: EditText? = et
-                  if (editor != null) box.addView(editor)
-                  return box
-              }
-          }
-          EOF
-          mkdir -p 'app/src/main/java/com/example/chatcopier'
           cat > 'app/src/main/java/com/example/chatcopier/WaService.kt' <<'EOF'
           package com.example.chatcopier
-
+          
           import android.accessibilityservice.AccessibilityService
           import android.accessibilityservice.GestureDescription
           import android.content.ClipData
@@ -503,19 +57,19 @@ jobs:
           import kotlinx.coroutines.launch
           import kotlinx.coroutines.suspendCancellableCoroutine
           import kotlin.coroutines.resume
-
+          
           // "اقرأ المزيد" في آخر الرسالة (لازم يسبقها ...)
           private val RM_RE = Regex(
               "(…|\\.\\.\\.)[\\s\\u200e\\u200f]*(read more|عرض المزيد|اقرأ المزيد|قراءة المزيد|عرض الكل)[\\s\\u200e\\u200f.…]*\$",
               RegexOption.IGNORE_CASE
           )
-
+          
           // علامات الرسالة الصادرة (حالة الإرسال)
           private val OUT_LABEL = Regex(
               "^\\s*(sent|delivered|read|pending|تم الإرسال|تم التسليم|تمت القراءة|قيد الانتظار|مرسلة|تم الارسال)\\s*\$",
               RegexOption.IGNORE_CASE
           )
-
+          
           private class Msg(val id: Int) {
               var text = ""
               var key = ""
@@ -525,8 +79,10 @@ jobs:
               var date = ""
               var sender = ""
               var quoted = ""
+              // في فجوة (رسايل لسه متشافتش) بعد الرسالة دي مباشرة
+              var gapAfter = false
           }
-
+          
           private class Entry(
               val text: String,
               val mine: Boolean,
@@ -541,7 +97,7 @@ jobs:
               val key: String = if (trunc) RM_RE.replace(text, "").trim() else text
               var msg: Msg? = null
           }
-
+          
           private class Snap(
               val entries: List<Entry>,
               val listRect: Rect,
@@ -549,7 +105,7 @@ jobs:
               val title: String,
               val group: Boolean
           )
-
+          
           private class RowScan {
               var body: AccessibilityNodeInfo? = null
               var bodyText = ""
@@ -559,30 +115,32 @@ jobs:
               var mine = false
               var divider = ""
           }
-
+          
           private class TreeWalk {
               var list: AccessibilityNodeInfo? = null
               var listH = 0
               var title = ""
           }
-
+          
           private class Out(val text: String, val count: Int, val skipped: Int)
-
+          
           /** عمود دواير التحديد على طرف الشاشة. */
           private class StripView(ctx: Context) : View(ctx) {
               var items: List<Pair<Rect, Int>> = emptyList()
               var selectedIds: Set<Int> = emptySet()
+              var anchorId = -1
               var listTop = 0
               var listBottom = 0
               var onTap: ((Int, Boolean) -> Unit)? = null
-
+          
               private val dens = ctx.resources.displayMetrics.density
               private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
               private val green = Color.parseColor("#00A884")
+              private val orange = Color.parseColor("#FFB300")
               private val dark = Color.parseColor("#CC111B21")
               private val gray = Color.parseColor("#8696A0")
               private var downT = 0L
-
+          
               override fun onDraw(c: Canvas) {
                   val loc = IntArray(2)
                   getLocationOnScreen(loc)
@@ -595,12 +153,13 @@ jobs:
                       if (bot - top < 14 * dens) continue
                       val cy = (top + bot) / 2f - loc[1]
                       val sel = selectedIds.contains(it.second)
+                      val col = if (it.second == anchorId) orange else green
                       paint.style = Paint.Style.FILL
-                      paint.color = if (sel) green else dark
+                      paint.color = if (sel) col else dark
                       c.drawCircle(cx, cy, rad, paint)
                       paint.style = Paint.Style.STROKE
                       paint.strokeWidth = 2f * dens
-                      paint.color = if (sel) green else gray
+                      paint.color = if (sel) col else gray
                       c.drawCircle(cx, cy, rad, paint)
                       if (sel) {
                           paint.color = Color.WHITE
@@ -610,7 +169,7 @@ jobs:
                       }
                   }
               }
-
+          
               override fun onTouchEvent(ev: MotionEvent): Boolean {
                   if (ev.action == MotionEvent.ACTION_DOWN) {
                       downT = ev.eventTime
@@ -636,7 +195,7 @@ jobs:
                   return true
               }
           }
-
+          
           /** تظليل الرسائل المحددة (مش بيمسك اللمس). */
           private class HiView(ctx: Context) : View(ctx) {
               var items: List<Pair<Rect, Int>> = emptyList()
@@ -644,11 +203,11 @@ jobs:
               var listTop = 0
               var listBottom = 0
               private val paint = Paint()
-
+          
               init {
                   paint.color = Color.parseColor("#2800A884")
               }
-
+          
               override fun onDraw(c: Canvas) {
                   val loc = IntArray(2)
                   getLocationOnScreen(loc)
@@ -661,9 +220,9 @@ jobs:
                   }
               }
           }
-
+          
           class WaService : AccessibilityService() {
-
+          
               private lateinit var wm: WindowManager
               private lateinit var panel: LinearLayout
               private lateinit var lp: WindowManager.LayoutParams
@@ -674,6 +233,8 @@ jobs:
               private lateinit var grip: TextView
               private lateinit var logo: ImageView
               private lateinit var toggle: Button
+              private lateinit var startB: Button
+              private lateinit var endB: Button
               private lateinit var count: TextView
               private lateinit var copyB: Button
               private lateinit var gearB: Button
@@ -682,7 +243,7 @@ jobs:
               private lateinit var stripView: StripView
               private lateinit var hiLp: WindowManager.LayoutParams
               private lateinit var stripLp: WindowManager.LayoutParams
-
+          
               private var shown = false
               private var overlayShown = false
               private var popOpen = false
@@ -692,21 +253,33 @@ jobs:
               private val handler = Handler(Looper.getMainLooper())
               private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
               private var job: Job? = null
-
+          
+              // كل الرسائل اللي اتشافت مرتبة (من الأقدم للأحدث). gapAfter = في فجوة بعد الرسالة.
               private val chat = ArrayList<Msg>()
+              // تحديد فردي
               private val selected = LinkedHashSet<Int>()
+              // مدى (بداية/نهاية) — بيتحسب وقت النسخ فبيشمل أي رسايل اتضافت في الفجوات بعدين
+              private val ranges = ArrayList<IntArray>()
+              // رسائل اتلغى تحديدها من جوه مدى
+              private val excluded = HashSet<Int>()
               private val reacted = HashSet<String>()
+              private val redirects = HashMap<Int, Int>()
               private var nextId = 1
               private var lastPicked = -1
+              private var armed = 0 // 0 عادي، 1 مستني دايرة البداية، 2 مستني دايرة النهاية
+              private var rangeStartId = -1
+              private var dirHint = -1 // 1 = بنسكرول ناحية الأحدث، -1 = ناحية الأقدم
+              private var curMsgId = -1
+              private var prevFirstId = -1
               private var curTitle = ""
               private var isGroup = false
-              private var gap = false
               private var lastSnap: Snap? = null
+              private var lastDump = ""
               private var imePkgs: Set<String>? = null
               private val clearStatusRun = Runnable { setStatus("") }
-
+          
               // ---------------------------------------------------------------- lifecycle
-
+          
               override fun onServiceConnected() {
                   super.onServiceConnected()
                   wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -718,9 +291,9 @@ jobs:
                   val r = rootInActiveWindow
                   if (isWa(r?.packageName?.toString())) showPanel()
               }
-
+          
               override fun onInterrupt() {}
-
+          
               override fun onDestroy() {
                   job?.cancel()
                   scope.cancel()
@@ -728,9 +301,9 @@ jobs:
                   hidePanel()
                   super.onDestroy()
               }
-
+          
               private fun isWa(pkg: String?): Boolean = pkg != null && pkg.startsWith("com.whatsapp")
-
+          
               private fun imePackages(): Set<String> {
                   val cached = imePkgs
                   if (cached != null) return cached
@@ -739,7 +312,7 @@ jobs:
                   imePkgs = s
                   return s
               }
-
+          
               override fun onAccessibilityEvent(e: AccessibilityEvent?) {
                   if (e == null) return
                   val pkg = e.packageName?.toString()
@@ -769,22 +342,28 @@ jobs:
                       }
                       AccessibilityEvent.TYPE_VIEW_SCROLLED,
                       AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
+                          if (e.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED && isWa(pkg) &&
+                              Build.VERSION.SDK_INT >= 28
+                          ) {
+                              val dy = e.scrollDeltaY
+                              if (dy > 0) dirHint = 1 else if (dy < 0) dirHint = -1
+                          }
                           if (on && !busy && isWa(pkg)) scheduleRefresh()
                       }
                   }
               }
-
+          
               private fun scheduleRefresh() {
                   if (refreshQueued) return
                   refreshQueued = true
                   handler.postDelayed({
                       refreshQueued = false
                       if (on && !busy) refreshNow()
-                  }, 150)
+                  }, 70)
               }
-
+          
               // ---------------------------------------------------------------- قراءة الرسائل من الشاشة
-
+          
               private fun walkRoot(n: AccessibilityNodeInfo, w: TreeWalk, depth: Int) {
                   if (depth > 40) return
                   val id = n.viewIdResourceName ?: ""
@@ -804,7 +383,7 @@ jobs:
                       walkRoot(c, w, depth + 1)
                   }
               }
-
+          
               private fun scanRow(n: AccessibilityNodeInfo, r: RowScan, depth: Int) {
                   if (depth > 25) return
                   val id = n.viewIdResourceName ?: ""
@@ -835,7 +414,7 @@ jobs:
                       scanRow(c, r, depth + 1)
                   }
               }
-
+          
               /** يقرا الرسائل الظاهرة دلوقتي. بيرجّع null لو مش في شات. */
               private fun readWindow(): Snap? {
                   val root = rootInActiveWindow ?: return null
@@ -861,7 +440,7 @@ jobs:
                   }
                   return Snap(out, lr, list, w.title, anyGroup)
               }
-
+          
               private fun sameMsg(m: Msg, e: Entry): Boolean {
                   if (m.key == e.key) return true
                   if (m.trunc || e.trunc) {
@@ -869,33 +448,15 @@ jobs:
                   }
                   return false
               }
-
-              /** يرجّع مكان أول عنصر من الشاشة جوه القايمة المسجلة لو في تداخل، وإلا null. */
-              private fun align(w: List<Entry>): Int? {
-                  if (w.isEmpty() || chat.isEmpty()) return null
-                  val need = minOf(2, w.size, chat.size)
-                  var best = 0
-                  var bestD: Int? = null
-                  for (d in -(w.size - 1) until chat.size) {
-                      val from = maxOf(0, -d)
-                      val to = minOf(w.size, chat.size - d)
-                      val cnt = to - from
-                      if (cnt < need || cnt <= best) continue
-                      var ok = true
-                      for (t in from until to) {
-                          if (!sameMsg(chat[d + t], w[t])) {
-                              ok = false
-                              break
-                          }
-                      }
-                      if (ok) {
-                          best = cnt
-                          bestD = d
-                      }
+          
+              private fun sameMsgs(a: Msg, b: Msg): Boolean {
+                  if (a.key == b.key) return true
+                  if (a.trunc || b.trunc) {
+                      return a.key.startsWith(b.key) || b.key.startsWith(a.key)
                   }
-                  return bestD
+                  return false
               }
-
+          
               private fun newMsg(e: Entry): Msg {
                   val m = Msg(nextId)
                   nextId++
@@ -909,7 +470,7 @@ jobs:
                   m.quoted = e.quoted
                   return m
               }
-
+          
               private fun updateMsg(m: Msg, e: Entry) {
                   if (m.trunc && !e.trunc) {
                       m.text = e.text
@@ -922,44 +483,275 @@ jobs:
                   if (m.sender.isEmpty()) m.sender = e.sender
                   if (m.quoted.isEmpty()) m.quoted = e.quoted
               }
-
-              /** يدمج الرسائل الظاهرة في القايمة المرتبة للمحادثة (زي mergeList في الإضافة). */
-              private fun mergeEntries(w: List<Entry>): Boolean {
-                  if (w.isEmpty()) return true
-                  if (chat.isEmpty()) {
-                      for (e in w) {
-                          val m = newMsg(e)
-                          chat.add(m)
-                          e.msg = m
-                      }
-                      return true
+          
+              private fun mergeInfo(keep: Msg, drop: Msg) {
+                  if (keep.trunc && !drop.trunc) {
+                      keep.text = drop.text
+                      keep.key = drop.key
+                      keep.trunc = false
                   }
-                  val d = align(w) ?: return false
-                  val lsz = chat.size
-                  val pre = ArrayList<Msg>()
-                  for (t in w.indices) {
-                      val idx = d + t
-                      if (idx >= 0 && idx < lsz) {
-                          val m = chat[idx]
-                          updateMsg(m, w[t])
-                          w[t].msg = m
-                      } else {
-                          val m = newMsg(w[t])
-                          w[t].msg = m
-                          if (idx < 0) pre.add(m) else chat.add(m)
-                      }
-                  }
-                  if (pre.isNotEmpty()) chat.addAll(0, pre)
-                  return true
+                  if (drop.mine) keep.mine = true
+                  if (keep.time.isEmpty()) keep.time = drop.time
+                  if (keep.date.isEmpty()) keep.date = drop.date
+                  if (keep.sender.isEmpty()) keep.sender = drop.sender
+                  if (keep.quoted.isEmpty()) keep.quoted = drop.quoted
               }
-
+          
               private fun idxOf(id: Int): Int {
                   for (i in chat.indices) {
                       if (chat[i].id == id) return i
                   }
                   return -1
               }
-
+          
+              private fun visibleMsgs(s: Snap): List<Msg> {
+                  val out = ArrayList<Msg>()
+                  for (en in s.entries) {
+                      val m = en.msg
+                      if (m != null) out.add(m)
+                  }
+                  return out
+              }
+          
+              // ---------------------------------------------------------------- دمج الرسائل (مقاطع + فجوات)
+          
+              /** المقاطع المتصلة: كل مقطع [أول، آخر] بدون فجوات جواه. */
+              private fun runBounds(): List<IntArray> {
+                  val out = ArrayList<IntArray>()
+                  var s = 0
+                  for (i in chat.indices) {
+                      if (chat[i].gapAfter || i == chat.size - 1) {
+                          out.add(intArrayOf(s, i))
+                          s = i + 1
+                      }
+                  }
+                  return out
+              }
+          
+              /** يطابق الرسايل الظاهرة مع مقطع. يرجّع [الإزاحة، عدد المتطابق] أو null. */
+              private fun alignRun(w: List<Entry>, rs: Int, re: Int): IntArray? {
+                  val n = re - rs + 1
+                  if (w.isEmpty() || n <= 0) return null
+                  val need = minOf(2, w.size, n)
+                  var best = 0
+                  var bestD = 0
+                  var found = false
+                  for (d in -(w.size - 1) until n) {
+                      val from = maxOf(0, -d)
+                      val to = minOf(w.size, n - d)
+                      val cnt = to - from
+                      if (cnt < need || cnt <= best) continue
+                      var ok = true
+                      for (t in from until to) {
+                          if (!sameMsg(chat[rs + d + t], w[t])) {
+                              ok = false
+                              break
+                          }
+                      }
+                      if (ok) {
+                          best = cnt
+                          bestD = d
+                          found = true
+                      }
+                  }
+                  return if (found) intArrayOf(bestD, best) else null
+              }
+          
+              private fun mergeIntoRun(w: List<Entry>, run: IntArray, d: Int) {
+                  val rs = run[0]
+                  val re = run[1]
+                  val n = re - rs + 1
+                  val pre = ArrayList<Msg>()
+                  val post = ArrayList<Msg>()
+                  for (t in w.indices) {
+                      val idx = d + t
+                      if (idx >= 0 && idx < n) {
+                          val m = chat[rs + idx]
+                          updateMsg(m, w[t])
+                          w[t].msg = m
+                      } else {
+                          val m = newMsg(w[t])
+                          w[t].msg = m
+                          if (idx < 0) pre.add(m) else post.add(m)
+                      }
+                  }
+                  if (post.isNotEmpty()) {
+                      val oldGap = chat[re].gapAfter
+                      chat[re].gapAfter = false
+                      chat.addAll(re + 1, post)
+                      post[post.size - 1].gapAfter = oldGap
+                  }
+                  if (pre.isNotEmpty()) chat.addAll(rs, pre)
+              }
+          
+              /** الرسايل الظاهرة مفيهاش تداخل مع أي مقطع: بنعمل مقطع جديد حسب اتجاه السكرول. */
+              private fun addRun(w: List<Entry>, runs: List<IntArray>) {
+                  var runIdx = runs.size - 1
+                  val ci = if (curMsgId >= 0) idxOf(curMsgId) else -1
+                  if (ci >= 0) {
+                      for (ri in runs.indices) {
+                          if (ci >= runs[ri][0] && ci <= runs[ri][1]) runIdx = ri
+                      }
+                  }
+                  val msgs = ArrayList<Msg>()
+                  for (e in w) {
+                      val m = newMsg(e)
+                      e.msg = m
+                      msgs.add(m)
+                  }
+                  if (dirHint >= 0) {
+                      val p = runs[runIdx][1] + 1
+                      val oldGap = chat[p - 1].gapAfter
+                      chat[p - 1].gapAfter = true
+                      chat.addAll(p, msgs)
+                      msgs[msgs.size - 1].gapAfter = oldGap
+                  } else {
+                      val p = runs[runIdx][0]
+                      chat.addAll(p, msgs)
+                      msgs[msgs.size - 1].gapAfter = true
+                  }
+              }
+          
+              private fun overlapLen(a: IntArray, b: IntArray): Int {
+                  val maxK = minOf(a[1] - a[0] + 1, b[1] - b[0] + 1)
+                  for (k in maxK downTo 1) {
+                      var ok = true
+                      for (t in 0 until k) {
+                          if (!sameMsgs(chat[a[1] - k + 1 + t], chat[b[0] + t])) {
+                              ok = false
+                              break
+                          }
+                      }
+                      if (ok && (k >= 2 || chat[b[0]].key.length >= 12)) return k
+                  }
+                  return 0
+              }
+          
+              private fun remap(from: Int, to: Int) {
+                  if (selected.remove(from)) selected.add(to)
+                  if (excluded.remove(from)) excluded.add(to)
+                  if (lastPicked == from) lastPicked = to
+                  if (rangeStartId == from) rangeStartId = to
+                  if (curMsgId == from) curMsgId = to
+                  if (prevFirstId == from) prevFirstId = to
+                  for (r in ranges) {
+                      if (r[0] == from) r[0] = to
+                      if (r[1] == from) r[1] = to
+                  }
+                  val rem = ArrayList<String>()
+                  val add = ArrayList<String>()
+                  for (k in reacted) {
+                      if (k.startsWith("$from|")) {
+                          rem.add(k)
+                          add.add("$to|" + k.substring(k.indexOf('|') + 1))
+                      }
+                  }
+                  for (k in rem) reacted.remove(k)
+                  reacted.addAll(add)
+              }
+          
+              private fun joinRuns(a: IntArray, b: IntArray, k: Int) {
+                  val bLastGap = chat[b[1]].gapAfter
+                  val bLen = b[1] - b[0] + 1
+                  for (t in 0 until k) {
+                      val keep = chat[a[1] - k + 1 + t]
+                      val drop = chat[b[0] + t]
+                      mergeInfo(keep, drop)
+                      remap(drop.id, keep.id)
+                      redirects[drop.id] = keep.id
+                  }
+                  chat.subList(b[0], b[0] + k).clear()
+                  chat[a[1]].gapAfter = if (k == bLen) bLastGap else false
+              }
+          
+              /** لو مقطعين اتقابلوا (بعد ما الشاشة غطت الفجوة) بيتدمجوا في مقطع واحد. */
+              private fun joinAll() {
+                  var i = 0
+                  var guard = 0
+                  while (guard < 500) {
+                      guard++
+                      val runs = runBounds()
+                      if (i >= runs.size - 1) break
+                      val a = runs[i]
+                      val b = runs[i + 1]
+                      val k = overlapLen(a, b)
+                      if (k > 0) joinRuns(a, b, k) else i++
+                  }
+              }
+          
+              private fun finishMerge(w: List<Entry>) {
+                  redirects.clear()
+                  joinAll()
+                  if (redirects.isNotEmpty()) {
+                      for (e in w) {
+                          val m = e.msg ?: continue
+                          var id = m.id
+                          var hop = 0
+                          while (redirects.containsKey(id) && hop < 20) {
+                              id = redirects[id] ?: id
+                              hop++
+                          }
+                          if (id != m.id) {
+                              val i = idxOf(id)
+                              if (i >= 0) e.msg = chat[i]
+                          }
+                      }
+                  }
+                  val f = w[0].msg
+                  val l = w[w.size - 1].msg
+                  if (f != null) {
+                      if (prevFirstId >= 0) {
+                          val pi = idxOf(prevFirstId)
+                          val ni = idxOf(f.id)
+                          if (pi >= 0 && ni >= 0 && pi != ni) dirHint = if (ni > pi) 1 else -1
+                      }
+                      prevFirstId = f.id
+                  }
+                  if (l != null) curMsgId = l.id
+              }
+          
+              /** يدمج الرسائل الظاهرة في قايمة المحادثة. مفيش حاجة اسمها فشل: لو في فجوة بنسجّلها ونكمل. */
+              private fun mergeEntries(w: List<Entry>) {
+                  if (w.isEmpty()) return
+                  if (chat.isEmpty()) {
+                      for (e in w) {
+                          val m = newMsg(e)
+                          chat.add(m)
+                          e.msg = m
+                      }
+                      finishMerge(w)
+                      return
+                  }
+                  val runs = runBounds()
+                  var bestRun = -1
+                  var bestCnt = 0
+                  var bestD = 0
+                  for (ri in runs.indices) {
+                      val a = alignRun(w, runs[ri][0], runs[ri][1]) ?: continue
+                      if (a[1] > bestCnt) {
+                          bestCnt = a[1]
+                          bestRun = ri
+                          bestD = a[0]
+                      }
+                  }
+                  if (bestRun >= 0) mergeIntoRun(w, runs[bestRun], bestD) else addRun(w, runs)
+                  finishMerge(w)
+              }
+          
+              private fun resetAll() {
+                  chat.clear()
+                  selected.clear()
+                  ranges.clear()
+                  excluded.clear()
+                  reacted.clear()
+                  lastPicked = -1
+                  rangeStartId = -1
+                  armed = 0
+                  curMsgId = -1
+                  prevFirstId = -1
+                  isGroup = false
+              }
+          
               private fun refreshNow(): Snap? {
                   val snap = readWindow()
                   if (snap == null) {
@@ -967,66 +759,168 @@ jobs:
                       return null
                   }
                   if (snap.title.isNotEmpty()) {
-                      if (curTitle.isNotEmpty() && snap.title != curTitle && (chat.isNotEmpty() || selected.isNotEmpty())) {
-                          if (selected.isNotEmpty()) toast("اتمسح التحديد لأن المحادثة اتغيرت", false)
-                          chat.clear()
-                          selected.clear()
-                          lastPicked = -1
-                          isGroup = false
+                      if (curTitle.isNotEmpty() && snap.title != curTitle &&
+                          (chat.isNotEmpty() || selected.isNotEmpty() || ranges.isNotEmpty())
+                      ) {
+                          if (selSet().isNotEmpty()) toast("اتمسح التحديد لأن المحادثة اتغيرت", false)
+                          resetAll()
                       }
                       curTitle = snap.title
                   }
                   if (snap.group) isGroup = true
-                  val ok = mergeEntries(snap.entries)
-                  if (!ok) {
-                      gap = true
-                      setStatus("⚠ في فجوة: ارجع لورا شوية واسكرول أبطأ (أو اقفل التحديد وافتحه تاني لو غيرت الشات)")
-                  } else if (gap) {
-                      gap = false
-                      setStatus("")
-                  }
+                  mergeEntries(snap.entries)
                   lastSnap = snap
                   updateOverlay(snap)
                   applyUi()
                   return snap
               }
-
+          
               // ---------------------------------------------------------------- التحديد
-
+          
+              /** كل الرسايل المحددة (فردي + المدى) ناقص اللي اتلغى. */
+              private fun selSet(): Set<Int> {
+                  val s = HashSet<Int>(selected)
+                  for (r in ranges) {
+                      val a = idxOf(r[0])
+                      val b = idxOf(r[1])
+                      if (a < 0 || b < 0) continue
+                      for (i in minOf(a, b)..maxOf(a, b)) s.add(chat[i].id)
+                  }
+                  for (x in excluded) s.remove(x)
+                  return s
+              }
+          
+              /** مواضع الفجوات (بعد الرسالة رقم j) اللي واقعة جوه مدى محدد. */
+              private fun rangeGaps(): List<Int> {
+                  val out = ArrayList<Int>()
+                  val seen = HashSet<Int>()
+                  for (r in ranges) {
+                      val a = idxOf(r[0])
+                      val b = idxOf(r[1])
+                      if (a < 0 || b < 0) continue
+                      val lo = minOf(a, b)
+                      val hi = maxOf(a, b)
+                      for (j in lo until hi) {
+                          if (chat[j].gapAfter && seen.add(j)) out.add(j)
+                      }
+                  }
+                  return out
+              }
+          
               private fun setOn(v: Boolean) {
                   on = v
                   if (v) {
                       refreshNow()
                   } else {
-                      selected.clear()
-                      chat.clear()
-                      lastPicked = -1
+                      resetAll()
                       curTitle = ""
-                      isGroup = false
-                      gap = false
+                      setStatus("")
                       hideOverlay()
                   }
                   applyUi()
                   if (popOpen) buildPop()
               }
-
-              private fun pick(id: Int, range: Boolean) {
-                  val a = idxOf(id)
-                  val b = if (lastPicked >= 0) idxOf(lastPicked) else -1
-                  val state = !selected.contains(id)
-                  if (range && a >= 0 && b >= 0) {
-                      for (i in minOf(a, b)..maxOf(a, b)) {
-                          if (state) selected.add(chat[i].id) else selected.remove(chat[i].id)
-                      }
-                  } else {
-                      if (state) selected.add(id) else selected.remove(id)
-                  }
-                  lastPicked = id
+          
+              private fun afterPick() {
                   applyUi()
                   val s = lastSnap
                   if (s != null) updateOverlay(s)
               }
-
+          
+              private fun addRange(a: Int, b: Int) {
+                  ranges.add(intArrayOf(a, b))
+                  val ia = idxOf(a)
+                  val ib = idxOf(b)
+                  if (ia >= 0 && ib >= 0) {
+                      for (i in minOf(ia, ib)..maxOf(ia, ib)) excluded.remove(chat[i].id)
+                  }
+              }
+          
+              private fun pick(id: Int, longPress: Boolean) {
+                  // زر "بداية": الدايرة الجاية هي أول الرسايل
+                  if (armed == 1 || (armed == 2 && rangeStartId < 0)) {
+                      rangeStartId = id
+                      excluded.remove(id)
+                      selected.add(id)
+                      lastPicked = id
+                      armed = 2
+                      setStatus("تمام ✓ اسكرول لآخر رسالة وادوس على دايرتها", true)
+                      afterPick()
+                      return
+                  }
+                  // زر "نهاية": الدايرة الجاية هي آخر الرسايل، وكل اللي بينهم يتحدد
+                  if (armed == 2) {
+                      addRange(rangeStartId, id)
+                      selected.add(id)
+                      lastPicked = id
+                      rangeStartId = -1
+                      armed = 0
+                      setStatus("")
+                      afterPick()
+                      return
+                  }
+                  val s = selSet()
+                  val state = !s.contains(id)
+                  val a = idxOf(id)
+                  val b = if (lastPicked >= 0) idxOf(lastPicked) else -1
+                  if (longPress && a >= 0 && b >= 0) {
+                      if (state) {
+                          addRange(lastPicked, id)
+                          selected.add(id)
+                      } else {
+                          for (i in minOf(a, b)..maxOf(a, b)) {
+                              selected.remove(chat[i].id)
+                              excluded.add(chat[i].id)
+                          }
+                      }
+                  } else {
+                      if (state) {
+                          excluded.remove(id)
+                          selected.add(id)
+                      } else {
+                          selected.remove(id)
+                          excluded.add(id)
+                      }
+                  }
+                  lastPicked = id
+                  afterPick()
+              }
+          
+              private fun onStartBtn() {
+                  if (armed == 1) {
+                      armed = 0
+                      setStatus("")
+                  } else {
+                      armed = 1
+                      rangeStartId = -1
+                      setStatus("دوس على دايرة أول رسالة (البداية)", true)
+                  }
+                  applyUi()
+                  val s = lastSnap
+                  if (s != null) updateOverlay(s)
+              }
+          
+              private fun onEndBtn() {
+                  if (armed == 2 && rangeStartId >= 0) {
+                      armed = 0
+                      setStatus("")
+                  } else if (rangeStartId >= 0) {
+                      armed = 2
+                      setStatus("دوس على دايرة آخر رسالة (النهاية)", true)
+                  } else if (lastPicked >= 0 && selSet().contains(lastPicked)) {
+                      // آخر رسالة حددتها تبقى هي البداية
+                      rangeStartId = lastPicked
+                      armed = 2
+                      setStatus("دوس على دايرة آخر رسالة (النهاية)", true)
+                  } else {
+                      armed = 1
+                      setStatus("حدد البداية الأول: دوس على دايرة أول رسالة", true)
+                  }
+                  applyUi()
+                  val s = lastSnap
+                  if (s != null) updateOverlay(s)
+              }
+          
               private fun clickPick(x: Int, y: Int) {
                   if (!on || busy) return
                   val snap = refreshNow() ?: return
@@ -1038,52 +932,56 @@ jobs:
                       }
                   }
               }
-
+          
               private fun selectWhere(f: (Msg) -> Boolean) {
                   if (!on) setOn(true)
                   refreshNow()
                   for (m in chat) {
-                      if (f(m)) selected.add(m.id)
+                      if (f(m)) {
+                          excluded.remove(m.id)
+                          selected.add(m.id)
+                      }
                   }
-                  applyUi()
-                  val s = lastSnap
-                  if (s != null) updateOverlay(s)
+                  afterPick()
               }
-
+          
               private fun clearSelection() {
                   selected.clear()
+                  ranges.clear()
+                  excluded.clear()
                   lastPicked = -1
-                  applyUi()
-                  val s = lastSnap
-                  if (s != null) updateOverlay(s)
+                  rangeStartId = -1
+                  armed = 0
+                  setStatus("")
+                  afterPick()
               }
-
+          
               // ---------------------------------------------------------------- الإخراج
-
+          
               /** اسم المرسل للرسائل اللي مفيهاش اسم (واتساب بيخفيه في الرسائل المتتالية). */
               private fun resolveSenders() {
                   var lastIn = ""
                   for (m in chat) {
                       if (m.mine) {
                           lastIn = ""
-                          continue
-                      }
-                      if (m.sender.isNotEmpty()) {
+                      } else if (m.sender.isNotEmpty()) {
                           lastIn = m.sender
                       } else if (isGroup) {
                           if (lastIn.isNotEmpty()) m.sender = lastIn
                       } else if (curTitle.isNotEmpty()) {
                           m.sender = curTitle
                       }
+                      if (m.gapAfter) lastIn = ""
                   }
               }
-
+          
               private fun cleanText(m: Msg): String {
                   return RM_RE.replace(m.text, "").trim()
               }
-
+          
               private fun buildOutput(): Out {
                   resolveSenders()
+                  val sel = selSet()
                   val sep = Prefs.str(this, "sep", Prefs.SEP_LINE).replace("\\n", "\n")
                   val showSender = Prefs.bool(this, "sender")
                   val showTime = Prefs.bool(this, "time")
@@ -1092,7 +990,7 @@ jobs:
                   val lines = ArrayList<String>()
                   var skipped = 0
                   for (m in chat) {
-                      if (!selected.contains(m.id)) continue
+                      if (!sel.contains(m.id)) continue
                       val body = cleanText(m)
                       if (body.isEmpty()) {
                           skipped++
@@ -1117,7 +1015,7 @@ jobs:
                   }
                   return Out(lines.joinToString(sep), lines.size, skipped)
               }
-
+          
               private fun writeClipboard(text: String): Boolean {
                   return try {
                       val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -1127,7 +1025,7 @@ jobs:
                       false
                   }
               }
-
+          
               private fun saveTxt(text: String): Boolean {
                   val name = "whatsapp-messages-" + System.currentTimeMillis() + ".txt"
                   try {
@@ -1154,28 +1052,29 @@ jobs:
                       return false
                   }
               }
-
+          
               private fun toast(msg: String, long: Boolean) {
                   Toast.makeText(applicationContext, msg, if (long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show()
               }
-
+          
               // ---------------------------------------------------------------- فتح "اقرأ المزيد" والسكرول
-
+          
               private fun limitBottomOf(list: Rect): Int {
                   val loc = IntArray(2)
                   panel.getLocationOnScreen(loc)
                   val b = if (shown && loc[1] > list.centerY()) minOf(list.bottom, loc[1]) else list.bottom
                   return b - 6
               }
-
+          
               private fun truncIds(): List<Int> {
+                  val sel = selSet()
                   val out = ArrayList<Int>()
                   for (m in chat) {
-                      if (m.trunc && selected.contains(m.id)) out.add(m.id)
+                      if (m.trunc && sel.contains(m.id)) out.add(m.id)
                   }
                   return out
               }
-
+          
               private suspend fun clickReadMore(e: Entry) {
                   var a: AccessibilityNodeInfo? = e.body
                   var up = 0
@@ -1193,7 +1092,7 @@ jobs:
                       gesture(p, 60)
                   }
               }
-
+          
               private suspend fun expandVisible(ids: Set<Int>) {
                   val tries = HashMap<Int, Int>()
                   var backed = false
@@ -1208,7 +1107,7 @@ jobs:
                           }
                           return
                       }
-                      if (!mergeEntries(snap.entries)) return
+                      mergeEntries(snap.entries)
                       var target: Entry? = null
                       for (en in snap.entries) {
                           val m = en.msg ?: continue
@@ -1225,24 +1124,19 @@ jobs:
                       delay(700)
                   }
               }
-
+          
               private suspend fun bringIntoView(id: Int, steps: Int): Boolean {
                   var same = 0
                   var lastFirst = -1
                   for (i in 0 until steps) {
                       val snap = readWindow() ?: return false
-                      if (!mergeEntries(snap.entries)) return false
-                      for (en in snap.entries) {
-                          val m = en.msg
-                          if (m != null && m.id == id) return true
-                      }
-                      val vis = ArrayList<Msg>()
-                      for (en in snap.entries) {
-                          val m = en.msg
-                          if (m != null) vis.add(m)
+                      mergeEntries(snap.entries)
+                      val vis = visibleMsgs(snap)
+                      for (m in vis) {
+                          if (m.id == id) return true
                       }
                       if (vis.isEmpty()) return false
-                      val first = chat.indexOf(vis[0])
+                      val first = idxOf(vis[0].id)
                       val target = idxOf(id)
                       if (target < 0) return false
                       val older = target < first
@@ -1253,12 +1147,63 @@ jobs:
                           same = 0
                       }
                       lastFirst = first
+                      dirHint = if (older) -1 else 1
                       swipe(snap.listRect, limitBottomOf(snap.listRect), older)
                       delay(450)
                   }
                   return false
               }
-
+          
+              /** بيملا أي فجوة جوه المدى المحدد: بيسكرول براحة لحد ما الرسايل تتوصل ببعض. */
+              private suspend fun fillGaps(): Int {
+                  if (rangeGaps().isEmpty()) return 0
+                  setStatus("بجمّع الرسايل اللي في النص… (متحركش)", true)
+                  var anchor = -1
+                  val ls0 = lastSnap
+                  if (ls0 != null) {
+                      val v0 = visibleMsgs(ls0)
+                      if (v0.isNotEmpty()) anchor = v0[v0.size / 2].id
+                  }
+                  var same = 0
+                  var lastFirst = Int.MIN_VALUE
+                  var iter = 0
+                  while (currentCoroutineContext().isActive && iter < 800) {
+                      iter++
+                      if (rangeGaps().isEmpty()) break
+                      val snap = readWindow() ?: break
+                      mergeEntries(snap.entries)
+                      val gaps = rangeGaps()
+                      if (gaps.isEmpty()) break
+                      val vis = visibleMsgs(snap)
+                      if (vis.isEmpty()) break
+                      val firstIdx = idxOf(vis[0].id)
+                      val lastIdx = idxOf(vis[vis.size - 1].id)
+                      var bestJ = gaps[0]
+                      var bestDist = Int.MAX_VALUE
+                      for (j in gaps) {
+                          val dist = if (j < firstIdx) firstIdx - j else if (j >= lastIdx) j - lastIdx else 0
+                          if (dist < bestDist) {
+                              bestDist = dist
+                              bestJ = j
+                          }
+                      }
+                      val older = bestJ < (firstIdx + lastIdx) / 2
+                      if (firstIdx == lastFirst) {
+                          same++
+                          if (same >= 4) break
+                      } else {
+                          same = 0
+                      }
+                      lastFirst = firstIdx
+                      dirHint = if (older) -1 else 1
+                      swipe(snap.listRect, limitBottomOf(snap.listRect), older)
+                      delay(380)
+                  }
+                  if (anchor >= 0 && idxOf(anchor) >= 0) bringIntoView(anchor, 150)
+                  setStatus("")
+                  return rangeGaps().size
+              }
+          
               /** قبل النسخ: يفتح الرسائل الطويلة المقصوصة (ويسكرول لها لو مش ظاهرة) ويرجع مكانك. */
               private suspend fun ensureFull(): Int {
                   val ids = HashSet<Int>(truncIds())
@@ -1270,11 +1215,7 @@ jobs:
                       var anchor = -1
                       val ls = lastSnap
                       if (ls != null) {
-                          val vis = ArrayList<Msg>()
-                          for (en in ls.entries) {
-                              val m = en.msg
-                              if (m != null) vis.add(m)
-                          }
+                          val vis = visibleMsgs(ls)
                           if (vis.isNotEmpty()) anchor = vis[vis.size / 2].id
                       }
                       val sorted = missing.sortedByDescending { idxOf(it) }
@@ -1292,35 +1233,37 @@ jobs:
                   setStatus("")
                   return truncIds().size
               }
-
+          
               // ---------------------------------------------------------------- النسخ / التنزيل
-
+          
               private fun onCopy() {
-                  if (busy || selected.isEmpty()) return
+                  if (busy || selSet().isEmpty()) return
                   job = scope.launch { doCopy() }
               }
-
+          
               private fun onDownload() {
-                  if (busy || selected.isEmpty()) return
+                  if (busy || selSet().isEmpty()) return
                   job = scope.launch { doDownload() }
               }
-
+          
               private fun beginBusy() {
                   busy = true
+                  armed = 0
                   hideOverlay()
                   applyUi()
               }
-
+          
               private fun endBusy() {
                   busy = false
                   job = null
                   applyUi()
                   if (on) refreshNow()
               }
-
+          
               private suspend fun doCopy() {
                   beginBusy()
                   try {
+                      val remaining = fillGaps()
                       val partial = ensureFull()
                       val out = buildOutput()
                       if (out.count == 0) {
@@ -1334,7 +1277,8 @@ jobs:
                       var base = "✓ تم نسخ ${out.count} رسالة"
                       if (out.skipped > 0) base += " (تخطي ${out.skipped} بدون نص)"
                       if (partial > 0) base += " — تنبيه: $partial رسالة طويلة اتنسخت ناقصة"
-                      toast(base, partial > 0)
+                      if (remaining > 0) base += " — في $remaining فجوة مقدرتش أملاها"
+                      toast(base, partial > 0 || remaining > 0)
                       val emoji = Prefs.str(this, "reactEmoji", "")
                       if (emoji.isNotEmpty()) {
                           val res = reactAll(emoji)
@@ -1342,16 +1286,19 @@ jobs:
                       }
                       if (Prefs.bool(this, "autoClear")) {
                           selected.clear()
+                          ranges.clear()
+                          excluded.clear()
                           lastPicked = -1
                       }
                   } finally {
                       endBusy()
                   }
               }
-
+          
               private suspend fun doDownload() {
                   beginBusy()
                   try {
+                      val remaining = fillGaps()
                       val partial = ensureFull()
                       val out = buildOutput()
                       if (out.count == 0) {
@@ -1360,7 +1307,10 @@ jobs:
                       }
                       if (saveTxt(out.text)) {
                           val where = if (Build.VERSION.SDK_INT >= 29) " (في مجلد Download)" else ""
-                          toast("✓ تم تنزيل ${out.count} رسالة$where" + (if (partial > 0) " — $partial طويلة ناقصة" else ""), partial > 0)
+                          var msg = "✓ تم تنزيل ${out.count} رسالة$where"
+                          if (partial > 0) msg += " — $partial طويلة ناقصة"
+                          if (remaining > 0) msg += " — في $remaining فجوة مقدرتش أملاها"
+                          toast(msg, partial > 0 || remaining > 0)
                       } else {
                           toast("فشل التنزيل", true)
                       }
@@ -1368,7 +1318,7 @@ jobs:
                       endBusy()
                   }
               }
-
+          
               private fun onStop() {
                   job?.cancel()
                   job = null
@@ -1377,13 +1327,14 @@ jobs:
                   applyUi()
                   if (on) refreshNow()
               }
-
+          
               // ---------------------------------------------------------------- التفاعل بعد النسخ
-
+          
               private suspend fun reactAll(emoji: String): String {
+                  val sel = selSet()
                   val ids = ArrayList<Int>()
                   for (m in chat) {
-                      if (selected.contains(m.id)) ids.add(m.id)
+                      if (sel.contains(m.id)) ids.add(m.id)
                   }
                   val total = ids.size
                   val idSet = HashSet<Int>(ids)
@@ -1401,8 +1352,8 @@ jobs:
                   var sameSwipe = 0
                   var lastFirst = Int.MIN_VALUE
                   var failed = false
-
-                  while (currentCoroutineContext().isActive && done.size < total && iter < 1500) {
+          
+                  while (currentCoroutineContext().isActive && done.size < total && iter < 3000) {
                       iter++
                       val snap = readWindow()
                       if (snap == null) {
@@ -1411,16 +1362,11 @@ jobs:
                           delay(600)
                           continue
                       }
-                      if (!mergeEntries(snap.entries)) {
-                          stuck++
-                          if (stuck > 6) break
-                          delay(500)
-                          continue
-                      }
+                      mergeEntries(snap.entries)
                       stuck = 0
                       val list = snap.listRect
                       val limitBottom = limitBottomOf(list)
-
+          
                       var acted = false
                       for (en in snap.entries) {
                           val m = en.msg ?: continue
@@ -1443,23 +1389,18 @@ jobs:
                       }
                       if (failed) break
                       if (acted) continue
-
-                      val vis = ArrayList<Msg>()
-                      for (en in snap.entries) {
-                          val m = en.msg
-                          if (m != null) vis.add(m)
-                      }
+          
+                      val vis = visibleMsgs(snap)
                       if (vis.isEmpty()) break
-                      val firstIdx = chat.indexOf(vis[0])
-                      val lastIdx = chat.indexOf(vis[vis.size - 1])
-                      val todo = ArrayList<Int>()
-                      for (id in ids) {
-                          if (!done.contains(id)) todo.add(idxOf(id))
-                      }
+                      val firstIdx = idxOf(vis[0].id)
+                      val lastIdx = idxOf(vis[vis.size - 1].id)
                       var above = false
                       var below = false
                       val inWin = ArrayList<Int>()
-                      for (i in todo) {
+                      for (id in ids) {
+                          if (done.contains(id)) continue
+                          val i = idxOf(id)
+                          if (i < 0) continue
                           if (i < firstIdx) above = true
                           else if (i > lastIdx) below = true
                           else inWin.add(i)
@@ -1477,16 +1418,17 @@ jobs:
                           sameSwipe = 0
                       }
                       lastFirst = firstIdx
+                      dirHint = if (older) -1 else 1
                       swipe(list, limitBottom, older)
-                      delay(900)
+                      delay(700)
                   }
                   val res = "تفاعل $emoji: $count" +
                       (if (had > 0) " ($had كانت متفاعل عليها)" else "") +
-                      (if (failed) " — مقدرتش أكمل (لو التحديد لسه شغال في واتساب اضغط رجوع)" else "")
+                      (if (failed) " — مقدرتش أكمل (افتح ⚙ ودوس \"تقرير التفاعل\" وابعتهولي)" else "")
                   setStatus(res)
                   return res
               }
-
+          
               private suspend fun reactTo(node: AccessibilityNodeInfo, emoji: String): Boolean {
                   var longClicked = false
                   var a: AccessibilityNodeInfo? = node
@@ -1499,42 +1441,81 @@ jobs:
                       a = a.parent
                       up++
                   }
+                  val nr = Rect()
+                  node.getBoundsInScreen(nr)
                   if (!longClicked) {
-                      val r = Rect()
-                      node.getBoundsInScreen(r)
                       val p = Path()
-                      p.moveTo(r.left + r.width() / 4f, r.centerY().toFloat())
-                      p.lineTo(r.left + r.width() / 4f + 1f, r.centerY().toFloat() + 1f)
+                      p.moveTo(nr.left + nr.width() / 4f, nr.centerY().toFloat())
+                      p.lineTo(nr.left + nr.width() / 4f + 1f, nr.centerY().toFloat() + 1f)
                       gesture(p, 800)
                   }
-                  delay(900)
-                  val target = findEmoji(rootInActiveWindow, emoji) ?: return false
+                  var target: AccessibilityNodeInfo? = null
+                  for (attempt in 0 until 6) {
+                      delay(if (attempt == 0) 800L else 350L)
+                      target = findEmoji(nr, emoji)
+                      if (target != null) break
+                  }
+                  if (target == null) {
+                      lastDump = dumpWindows()
+                      performGlobalAction(GLOBAL_ACTION_BACK)
+                      delay(400)
+                      return false
+                  }
                   clickNode(target)
                   delay(300)
                   return true
               }
-
+          
               private fun norm(s: CharSequence?): String {
                   return s?.toString()?.replace("\uFE0F", "")?.trim() ?: ""
               }
-
+          
               private fun labelOf(n: AccessibilityNodeInfo): String {
                   val t = norm(n.text)
-                  return if (t.isNotEmpty()) t else norm(n.contentDescription)
+                  val d = norm(n.contentDescription)
+                  return (t + " " + d).trim()
               }
-
+          
+              private fun emojiOf(label: String): String? {
+                  if (label.isEmpty() || label.length > 40) return null
+                  for (e in Prefs.EMOJIS) {
+                      if (label.contains(e)) return e
+                  }
+                  return null
+              }
+          
+              /** كل نوافذ الشاشة (شريط التفاعل ممكن يبقى في نافذة منبثقة) ماعدا نوافذ التطبيق نفسه. */
+              private fun allRoots(): List<AccessibilityNodeInfo> {
+                  val out = ArrayList<AccessibilityNodeInfo>()
+                  try {
+                      for (w in windows) {
+                          val r = w.root ?: continue
+                          if (r.packageName?.toString() == packageName) continue
+                          out.add(r)
+                      }
+                  } catch (e: Exception) {
+                  }
+                  if (out.isEmpty()) {
+                      val r = rootInActiveWindow
+                      if (r != null) out.add(r)
+                  }
+                  return out
+              }
+          
               /** يدور على شريط التفاعلات اللي ظهر فوق الرسالة ويرجّع زر الإيموجي المطلوب. */
-              private fun findEmoji(root: AccessibilityNodeInfo?, emoji: String): AccessibilityNodeInfo? {
-                  if (root == null) return null
+              private fun findEmoji(msg: Rect, emoji: String): AccessibilityNodeInfo? {
+                  val roots = allRoots()
+                  if (roots.isEmpty()) return null
                   val want = norm(emoji)
                   val groups = HashMap<AccessibilityNodeInfo, MutableList<AccessibilityNodeInfo>>()
                   val loose = ArrayList<AccessibilityNodeInfo>()
-
-                  fun walk(n: AccessibilityNodeInfo) {
+          
+                  fun walk(n: AccessibilityNodeInfo, depth: Int) {
+                      if (depth > 40) return
                       val id = n.viewIdResourceName ?: ""
                       if (!id.endsWith(":id/message_text") && !id.endsWith(":id/caption")) {
                           val label = labelOf(n)
-                          if (Prefs.EMOJIS.contains(label)) {
+                          if (emojiOf(label) != null) {
                               loose.add(n)
                               val p = n.parent
                               if (p != null) {
@@ -1549,26 +1530,81 @@ jobs:
                       }
                       for (i in 0 until n.childCount) {
                           val c = n.getChild(i) ?: continue
-                          walk(c)
+                          walk(c, depth + 1)
                       }
                   }
-                  walk(root)
-
+                  for (r in roots) walk(r, 0)
+          
                   var bestGroup: MutableList<AccessibilityNodeInfo>? = null
                   for (g in groups.values) {
                       if (g.size >= 3 && (bestGroup == null || g.size > bestGroup.size)) bestGroup = g
                   }
                   if (bestGroup != null) {
                       for (n in bestGroup) {
-                          if (labelOf(n) == want) return n
+                          if (emojiOf(labelOf(n)) == want) return n
                       }
                   }
+                  // لو الإيموجي مش مكتوب كنص، بنختار حسب ترتيبه في الشريط
+                  val idx = Prefs.EMOJIS.indexOf(want)
+                  if (idx >= 0) {
+                      val byIdx = findTrayByIndex(roots, msg, idx)
+                      if (byIdx != null) return byIdx
+                  }
                   for (n in loose) {
-                      if (labelOf(n) == want) return n
+                      if (emojiOf(labelOf(n)) == want && groups[n.parent]?.size ?: 0 >= 2) return n
                   }
                   return null
               }
-
+          
+              /** شريط من 6-8 أزرار صغيرة في صف واحد: ناخد الأقرب للرسالة ونختار الزر برقمه. */
+              private fun findTrayByIndex(roots: List<AccessibilityNodeInfo>, msg: Rect, idx: Int): AccessibilityNodeInfo? {
+                  var best: AccessibilityNodeInfo? = null
+                  var bestDist = Int.MAX_VALUE
+                  val minW = dp(18)
+                  val maxW = dp(100)
+          
+                  fun walk(n: AccessibilityNodeInfo, depth: Int) {
+                      if (depth > 30) return
+                      val cc = n.childCount
+                      if (cc in 6..8) {
+                          var clickable = 0
+                          var okSize = true
+                          var minTop = Int.MAX_VALUE
+                          var maxTop = Int.MIN_VALUE
+                          for (i in 0 until cc) {
+                              val c = n.getChild(i)
+                              if (c == null) {
+                                  okSize = false
+                                  break
+                              }
+                              val r = Rect()
+                              c.getBoundsInScreen(r)
+                              if (c.isClickable) clickable++
+                              if (r.width() < minW || r.width() > maxW) okSize = false
+                              if (r.top < minTop) minTop = r.top
+                              if (r.top > maxTop) maxTop = r.top
+                          }
+                          if (okSize && clickable >= 6 && maxTop - minTop <= dp(10)) {
+                              val pr = Rect()
+                              n.getBoundsInScreen(pr)
+                              val dist = Math.abs(pr.centerY() - msg.centerY())
+                              if (dist < bestDist) {
+                                  bestDist = dist
+                                  best = n
+                              }
+                          }
+                      }
+                      for (i in 0 until cc) {
+                          val c = n.getChild(i) ?: continue
+                          walk(c, depth + 1)
+                      }
+                  }
+                  for (r in roots) walk(r, 0)
+                  val b = best ?: return null
+                  if (idx >= b.childCount) return null
+                  return b.getChild(idx)
+              }
+          
               private suspend fun clickNode(n: AccessibilityNodeInfo) {
                   var a: AccessibilityNodeInfo? = n
                   var up = 0
@@ -1583,7 +1619,7 @@ jobs:
                   p.moveTo(r.centerX().toFloat(), r.centerY().toFloat())
                   gesture(p, 60)
               }
-
+          
               private suspend fun swipe(list: Rect, bottom: Int, older: Boolean) {
                   val top = list.top
                   val h = (bottom - top).toFloat()
@@ -1595,7 +1631,7 @@ jobs:
                   p.lineTo(x, y2)
                   gesture(p, 500)
               }
-
+          
               private suspend fun gesture(path: Path, duration: Long): Boolean =
                   suspendCancellableCoroutine { cont ->
                       val g = GestureDescription.Builder()
@@ -1605,18 +1641,18 @@ jobs:
                           override fun onCompleted(gestureDescription: GestureDescription?) {
                               if (cont.isActive) cont.resume(true)
                           }
-
+          
                           override fun onCancelled(gestureDescription: GestureDescription?) {
                               if (cont.isActive) cont.resume(false)
                           }
                       }, null)
                       if (!ok && cont.isActive) cont.resume(false)
                   }
-
+          
               // ---------------------------------------------------------------- تشخيص
-
-              private fun dump(n: AccessibilityNodeInfo, depth: Int, sb: StringBuilder) {
-                  if (sb.length > 8500 || depth > 7) return
+          
+              private fun dump(n: AccessibilityNodeInfo, depth: Int, sb: StringBuilder, cap: Int) {
+                  if (sb.length > cap || depth > 9) return
                   val r = Rect()
                   n.getBoundsInScreen(r)
                   var cd = n.contentDescription?.toString() ?: ""
@@ -1632,14 +1668,35 @@ jobs:
                   sb.append("\n")
                   for (i in 0 until n.childCount) {
                       val c = n.getChild(i) ?: continue
-                      dump(c, depth + 1, sb)
+                      dump(c, depth + 1, sb, cap)
                   }
               }
-
+          
+              /** تقرير كل النوافذ (من غير نص الرسائل) — بيتحفظ جوه التطبيق عشان ما يمسحش اللي نسخته. */
+              private fun dumpWindows(): String {
+                  val out = StringBuilder()
+                  out.append("== Geno reaction diag v2 == sdk=").append(Build.VERSION.SDK_INT).append("\n")
+                  val roots = allRoots()
+                  out.append("windows=").append(roots.size).append("\n")
+                  for (r in roots) {
+                      val sb = StringBuilder()
+                      out.append("-- window pkg=").append(r.packageName).append(" children=").append(r.childCount).append("\n")
+                      dump(r, 0, sb, 3800)
+                      out.append(sb)
+                  }
+                  return out.toString()
+              }
+          
+              private fun onReactDiag() {
+                  val t = if (lastDump.isEmpty()) "لسه ماحصلش تفاعل فاشل" else lastDump
+                  val ok = writeClipboard(t.take(14000))
+                  toast(if (ok) "✓ اتنسخ تقرير التفاعل — الصقه في الشات معايا" else "فشل نسخ التقرير", true)
+              }
+          
               /** بينسخ تقرير عن شكل الرسائل في واتساب (من غير نص الرسائل) عشان نظبط التطبيق عليه. */
               private fun onDiag() {
                   val sb = StringBuilder()
-                  sb.append("== Geno app diag v1 ==\n")
+                  sb.append("== Geno app diag v2 ==\n")
                   sb.append("sdk=").append(Build.VERSION.SDK_INT).append(" model=").append(Build.MODEL).append("\n")
                   val snap = readWindow()
                   if (snap == null) {
@@ -1657,16 +1714,16 @@ jobs:
                           sb.append(" mine=").append(rs.mine).append(" time=").append(rs.time.isNotEmpty())
                           sb.append(" sender=").append(rs.sender.isNotEmpty()).append(" quoted=").append(rs.quoted.isNotEmpty())
                           sb.append(" divider=").append(rs.divider.isNotEmpty()).append("\n")
-                          dump(row, 1, sb)
+                          dump(row, 1, sb, 8500)
                           shownRows++
                       }
                   }
                   val ok = writeClipboard(sb.toString().take(9000))
                   toast(if (ok) "✓ اتنسخ تقرير التشخيص — الصقه في الشات معايا" else "فشل نسخ التقرير", true)
               }
-
+          
               // ---------------------------------------------------------------- واجهة (مربعات التحديد)
-
+          
               private fun overlayParams(x: Int, y: Int, w: Int, h: Int, touchable: Boolean): WindowManager.LayoutParams {
                   var f = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                       WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
@@ -1684,7 +1741,7 @@ jobs:
                   p.y = y
                   return p
               }
-
+          
               private fun updateOverlay(snap: Snap) {
                   if (busy || !on) {
                       hideOverlay()
@@ -1747,18 +1804,20 @@ jobs:
                           }
                       }
                   }
+                  val ss = selSet()
                   hiView.items = items
-                  hiView.selectedIds = HashSet<Int>(selected)
+                  hiView.selectedIds = ss
                   hiView.listTop = lr.top
                   hiView.listBottom = lr.bottom
                   hiView.invalidate()
                   stripView.items = items
-                  stripView.selectedIds = HashSet<Int>(selected)
+                  stripView.selectedIds = ss
+                  stripView.anchorId = rangeStartId
                   stripView.listTop = lr.top
                   stripView.listBottom = lr.bottom
                   stripView.invalidate()
               }
-
+          
               private fun hideOverlay() {
                   if (!overlayShown) return
                   try {
@@ -1771,11 +1830,11 @@ jobs:
                   }
                   overlayShown = false
               }
-
+          
               // ---------------------------------------------------------------- اللوحة العايمة
-
+          
               private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
-
+          
               private fun setStatus(t: String, sticky: Boolean = false) {
                   if (!::status.isInitialized) return
                   handler.removeCallbacks(clearStatusRun)
@@ -1783,7 +1842,14 @@ jobs:
                   status.visibility = if (t.isEmpty()) View.GONE else View.VISIBLE
                   if (t.isNotEmpty() && !sticky) handler.postDelayed(clearStatusRun, 5000)
               }
-
+          
+              private fun tint(b: Button, color: String) {
+                  val g = GradientDrawable()
+                  g.setColor(Color.parseColor(color))
+                  g.cornerRadius = dp(8).toFloat()
+                  b.background = g
+              }
+          
               private fun mkBtn(label: String, bgColor: String, onClick: () -> Unit): Button {
                   val b = Button(this)
                   b.text = label
@@ -1795,14 +1861,11 @@ jobs:
                   b.minimumWidth = 0
                   b.setPadding(dp(8), dp(7), dp(8), dp(7))
                   b.setTextColor(Color.WHITE)
-                  val g = GradientDrawable()
-                  g.setColor(Color.parseColor(bgColor))
-                  g.cornerRadius = dp(8).toFloat()
-                  b.background = g
+                  tint(b, bgColor)
                   b.setOnClickListener { onClick() }
                   return b
               }
-
+          
               private fun addBar(v: View) {
                   val p = LinearLayout.LayoutParams(
                       LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -1811,7 +1874,7 @@ jobs:
                   p.setMargins(dp(2), 0, dp(2), 0)
                   bar.addView(v, p)
               }
-
+          
               private fun buildPanel() {
                   val dm = resources.displayMetrics
                   panel = LinearLayout(this)
@@ -1822,7 +1885,7 @@ jobs:
                   panel.background = bg
                   panel.setPadding(dp(6), dp(5), dp(6), dp(5))
                   panel.layoutDirection = View.LAYOUT_DIRECTION_RTL
-
+          
                   pop = ScrollView(this)
                   popBox = LinearLayout(this)
                   popBox.orientation = LinearLayout.VERTICAL
@@ -1831,25 +1894,25 @@ jobs:
                   pop.visibility = View.GONE
                   val popH = minOf((dm.heightPixels * 0.5f).toInt(), dp(380))
                   panel.addView(pop, LinearLayout.LayoutParams(dp(260), popH))
-
+          
                   status = TextView(this)
                   status.setTextColor(Color.WHITE)
                   status.textSize = 12f
                   status.setPadding(dp(4), dp(2), dp(4), dp(4))
                   status.visibility = View.GONE
                   panel.addView(status, LinearLayout.LayoutParams(dp(260), LinearLayout.LayoutParams.WRAP_CONTENT))
-
+          
                   bar = LinearLayout(this)
                   bar.orientation = LinearLayout.HORIZONTAL
                   bar.gravity = Gravity.CENTER_VERTICAL
-
+          
                   grip = TextView(this)
                   grip.text = "⋮⋮"
                   grip.textSize = 14f
                   grip.setTextColor(Color.parseColor("#8696A0"))
                   grip.setPadding(dp(8), dp(6), dp(8), dp(6))
                   bar.addView(grip)
-
+          
                   logo = ImageView(this)
                   logo.setImageResource(R.drawable.ic_launcher)
                   logo.setOnClickListener { setOn(!on) }
@@ -1858,27 +1921,33 @@ jobs:
                       true
                   }
                   bar.addView(logo, LinearLayout.LayoutParams(dp(32), dp(32)))
-
+          
                   toggle = mkBtn("تحديد رسائل", "#2A3942") { setOn(!on) }
                   addBar(toggle)
-
+          
+                  startB = mkBtn("بداية", "#2A3942") { onStartBtn() }
+                  addBar(startB)
+          
+                  endB = mkBtn("نهاية", "#2A3942") { onEndBtn() }
+                  addBar(endB)
+          
                   count = TextView(this)
                   count.setTextColor(Color.parseColor("#E9EDEF"))
                   count.textSize = 12f
                   count.setPadding(dp(4), 0, dp(4), 0)
                   addBar(count)
-
+          
                   copyB = mkBtn("نسخ", "#00A884") { onCopy() }
                   addBar(copyB)
-
+          
                   gearB = mkBtn("⚙", "#2A3942") { togglePop() }
                   addBar(gearB)
-
+          
                   stopB = mkBtn("إيقاف", "#D93025") { onStop() }
                   addBar(stopB)
-
+          
                   panel.addView(bar)
-
+          
                   lp = WindowManager.LayoutParams(
                       WindowManager.LayoutParams.WRAP_CONTENT,
                       WindowManager.LayoutParams.WRAP_CONTENT,
@@ -1889,13 +1958,13 @@ jobs:
                   lp.gravity = Gravity.BOTTOM or Gravity.LEFT
                   lp.x = Prefs.int(this, "px", (dm.widthPixels * 0.04f).toInt())
                   lp.y = Prefs.int(this, "py", dp(110))
-
+          
                   grip.setOnTouchListener(object : View.OnTouchListener {
                       var sx = 0f
                       var sy = 0f
                       var ox = 0
                       var oy = 0
-
+          
                       override fun onTouch(v: View, ev: MotionEvent): Boolean {
                           when (ev.action) {
                               MotionEvent.ACTION_DOWN -> {
@@ -1919,17 +1988,22 @@ jobs:
                       }
                   })
               }
-
+          
               private fun applyUi() {
                   if (!::panel.isInitialized) return
                   val collapsed = Prefs.bool(this, "integrate") && !on && !busy
+                  val n = selSet().size
                   toggle.visibility = if (collapsed || busy) View.GONE else View.VISIBLE
-                  toggle.text = if (on) "إنهاء" else "تحديد رسائل"
+                  toggle.text = if (on) "✕" else "تحديد رسائل"
+                  startB.visibility = if (on && !busy) View.VISIBLE else View.GONE
+                  endB.visibility = if (on && !busy) View.VISIBLE else View.GONE
+                  tint(startB, if (armed == 1) "#FFB300" else "#2A3942")
+                  tint(endB, if (armed == 2) "#FFB300" else "#2A3942")
                   count.visibility = if (on && !busy) View.VISIBLE else View.GONE
-                  count.text = "${selected.size} محددة"
+                  count.text = "$n ✓"
                   copyB.visibility = if (on && !busy) View.VISIBLE else View.GONE
-                  copyB.isEnabled = selected.isNotEmpty()
-                  copyB.alpha = if (selected.isEmpty()) 0.4f else 1f
+                  copyB.isEnabled = n > 0
+                  copyB.alpha = if (n == 0) 0.4f else 1f
                   gearB.visibility = if (collapsed || busy) View.GONE else View.VISIBLE
                   stopB.visibility = if (busy) View.VISIBLE else View.GONE
                   if (busy && popOpen) {
@@ -1937,7 +2011,7 @@ jobs:
                       pop.visibility = View.GONE
                   }
               }
-
+          
               private fun togglePop() {
                   popOpen = !popOpen
                   if (popOpen) {
@@ -1947,19 +2021,19 @@ jobs:
                       pop.visibility = View.GONE
                   }
               }
-
+          
               private fun popRow(): LinearLayout {
                   val row = LinearLayout(this)
                   row.orientation = LinearLayout.HORIZONTAL
                   return row
               }
-
+          
               private fun addTo(row: LinearLayout, b: View) {
                   val p = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                   p.setMargins(dp(2), 0, dp(2), 0)
                   row.addView(b, p)
               }
-
+          
               private fun buildPop() {
                   popBox.removeAllViews()
                   if (on) {
@@ -1986,14 +2060,17 @@ jobs:
                   addTo(b, mkBtn("تشخيص (ينسخ تقرير)", "#2A3942") { onDiag() })
                   addTo(b, mkBtn("إعدادات كاملة", "#2A3942") { openApp() })
                   popBox.addView(b)
+                  val c = popRow()
+                  addTo(c, mkBtn("تقرير التفاعل", "#2A3942") { onReactDiag() })
+                  popBox.addView(c)
               }
-
+          
               private fun openApp() {
                   val i = Intent(this, MainActivity::class.java)
                   i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                   startActivity(i)
               }
-
+          
               private fun showPanel() {
                   if (shown) return
                   try {
@@ -2002,7 +2079,7 @@ jobs:
                   } catch (e: Exception) {
                   }
               }
-
+          
               private fun hidePanel() {
                   if (!shown) return
                   try {
@@ -2013,28 +2090,3 @@ jobs:
               }
           }
           EOF
-
-      - name: Install fixed signing key
-        run: |
-          mkdir -p ~/.android
-          echo "MIIKZgIBAzCCChAGCSqGSIb3DQEHAaCCCgEEggn9MIIJ+TCCBcAGCSqGSIb3DQEHAaCCBbEEggWtMIIFqTCCBaUGCyqGSIb3DQEMCgECoIIFQDCCBTwwZgYJKoZIhvcNAQUNMFkwOAYJKoZIhvcNAQUMMCsEFOLZ2BGk1/jZLg9RGXJZRgBL249dAgInEAIBIDAMBggqhkiG9w0CCQUAMB0GCWCGSAFlAwQBKgQQjhlueEC5qhjB9Qw6Rii7jwSCBNDSKFb49GB9U1XoK2JIOMopw4rOObGxniWhBBiByJ9d0bi5BPRp18fPHFhxwCUCoEMKC3nnKXKB6fZAv5c4mQ7QewoBk5+y9dB9mqeTpy1IK74GIAiX0GxEALTFOhNlp57VfnBlHJcQje9mGJsji7Lhu7D1hreKxTniJpNntHz39QjofCUnSXyUcKMltzHnpofDxR4LuJ8AO301SPhDVkj8Qjt0E/h9NbtRQ4gFJHuntR4uJEWSMkLv58nj6Whd0hZnVWxteuZpToYbNlkRzRa75JVLxaaVRGeiTjrcZzDkDf5u3tdNzqJ/JZV6gn4Nq+IxTjadCsc3szknOqDp8tIZFfRG+av3L+ueJMuWZFOrMG0wGovY0VKz6pxUbkPk+erB2lBlfPv0GEmn6Vf7WKtKQ5+vWwdU0f8K26CXTJBoM/PIFxK2RWr9lP0OMGl6I6yuTmFoFkf0Kf5AtyuC13/P2V11vlmULKEUVTIrkYQk4ACk64wIqWYZ2Ja+ucvLwHkaMqDpjFlFtQEcYbeiC0mjMtEcqcCJNQybT+xxkO3la8foEKO46KYaeC6ozudD21cpWMRS+pfUoHJQ8bgsAtJNWs/7t2jT+1nMq2njeihSZTOPHDhPS1G+wpa/EwWRlpCkyp72x7Jt3Jlw11rEy0wOL6tY1z4WJkbTAx9DrTtpjwZYIfB3Jh8Rv6ki7Mef6Zkgqtg6E4ssx+K/Imq+XdCk1Y6drjKC9aeHKoSrAZ4JPPmDBEekLFRzl+9Gafw2BQw08+vJXhcRv3eF3iCXCqBoHpI0q6l+XYBAcRED7+X0eVplOWJpn6YxLq476EvK3rhp8a6r5O+kYxuBuMcQTqjkOwftC33K3QPm8ZUI49dzBWyJGbAIP68eKSNJqOohYdrK16ddmXQIssu6pHaTbwJUVp6yJMqQn683Of6lpiO8ScOREbx7jKg+wuyD5zJvuSOY5PFhKt/cpS+UPlBAODbfyG8ptjFIAHJUVqKnSHLmojGnC1ggXu/ky9dS0pBQpSrk9v6+diMYZFo0/4yRcR3FpHtwFa/YfxX+NUd2mVeBaQ1P6qkPpb3ORdwYixaFIdA54YbEyKFoD/1xpW06+Rnu+5GtCgSdjPg5dTFpixK1oDGWazTRZYzH2+rh7rIyRh1ZLXRi6K0nP1I1OnEgjz4IjqtQrPwkjfU08JQqLREbbFYf21dfJYlAPBiRC7YY3FcykYOkwuvz+ztpcf80ZkGg5Ov+rwJuLpJ8O4wP+QwU7l5vvynPiN4kACqlWMnNPdZS3ByotQaHN3qf5GcMX77Da/ubgpUJjDaEwSwrirOhW7GjRbNyie1Cy1zrXWYvTHnmRktUc7nCWeBZfnjI8jiozDEs1QsFGw/8xcqCNMW5FRc5Zy5G/EyDpMB5I4joLBnY1Ean/ELgNenGaf+gaRBbQyeU9zDvwnBhw5iuq6KxpT/M7l9TKQRkbSQNauuP9Sep3qKOuRdRrDgVXDNQCbp0jHJK/gxqNeJkonXVgi70//vDYyV9jnlaOKocNAM4zCA8eQsLJUA/7wDhn/eQslFg1puJyph522P+sPLptz607Ue4DW8esSfU+oh/B46/ahd/0sFt/DqmEHmkcQQNzZ7NevCwoGsWP+7mMdsaCYvq7jFSMC0GCSqGSIb3DQEJFDEgHh4AYQBuAGQAcgBvAGkAZABkAGUAYgB1AGcAawBlAHkwIQYJKoZIhvcNAQkVMRQEElRpbWUgMTc5MTczMjI3NDIwNDCCBDEGCSqGSIb3DQEHBqCCBCIwggQeAgEAMIIEFwYJKoZIhvcNAQcBMGYGCSqGSIb3DQEFDTBZMDgGCSqGSIb3DQEFDDArBBS0LpIfcz2FrK+oNBIC1kMhGiXLnQICJxACASAwDAYIKoZIhvcNAgkFADAdBglghkgBZQMEASoEEHG9d1itJFG3OmmGIS4VbUSAggOg5mm1WKPW06zAsJFRbV6vCSMhFPQcvZhWipYh6ERvA+nIytWQCHkEcYdv8nc5AzOQ+UIjga3l0dLh+anZAJVB6unj0W4hXYoS7OtXpXz/mp94ySutZG5PvKyezv4/QZA191FYAWYt1dNNSgvTzVM2oa6kOvLFVPuSk+KEonf5y/kPBqtToQBNsVq7zgC/V+Vru6gpxtXi5TWsGaxh48RMAKLt0B1MAOQ67jK+10Dtx5anAODMcprncqnlX7yDm2vNosMCG4TNi9aTd/do/LDgL5MN5mpHbHwARyQmv2qhIxohzs+/uyZfQoUZ5cyvMyjqHjsAB8pu7N/kvI0nAf6pirF7WOfmVGAugAs5Q70jaOv+pu/KQ1WYVynNil0bdaccGhr61MuLcIQUC/H7280lM+v0olqBfA6qpjnZkAP4qlcpCdsJ6/OLImBWH3XAPW7/zEIL6ZG9bL8m47+jI1K/Z+eLRg8sKERooHkOSy7GFO9AgmEOvjfrF0cEyfBj3GXjo+QmAMY5nmxqfivBzcXMF6j/tA/ffuXjM6px/ZA+zIE4zBJxYB2rCmJtVKUgmdpwPCvzhlSb1W85QJ9r52ch7iD+lVAUvlMhaqdb1faTwRlIvIVTD4UD0t1HjvQ4dYOyIqr8DgMSlzMQOEneadBC6LQJvbU90LJrEwCXadPjisq9Jy4E8QLl+6OxrpdnRllpj/bOoOgZR/VQ02r31YNr2woFfuuEzMLEabXvMwpoQFEdmM4kVl8UFQtBEEwUap/Ohx3pnbJkDuHQUZakMh6yqjLhayB57xB/b42542NX9Co2EaJ1Ghj0BrWcVWCBHTFNYEg21vONCWcBYCZ01CY8QQIht7CPJOMGnOnWqJ2cPpvUnD3R4CDw4RUGcVB/GITcQ8UzCMddANJfH2L2Z/fQQ+XCl2wyPE6kaAeISGjPgLn9y/9Mcx155JTZssP/FbMJpXqpDfetC4o8WBDixGt+byBBiIiHCwcQ3Hli7k2a/2xh2rjoq2RTYL0ltuT/i8XRLr7Ao3itUwQHgSZGAFJo0ENAcSUmPu6ypvOsKz/wFTIl00DmwQZVCCih7l82IbsdirXf1Ayxh2++G9gsf3u17RUtKkRrlW1E/5NzrzOJ6iqFZuIBOpUJJ1YYH9d490fMeYvclsgrRSkSIuK2PrFa/QWpQabnq4q2TIzkVD9vrr6dfu8WfO5n/2BV4+8IHRzqI+URlm5YP8ewbYBUrUPjhjBNMDEwDQYJYIZIAWUDBAIBBQAEIGRa4Ri4I9WpeuqWY2ouAckgnr9dcZ4PxFA1AVSGLCkUBBR/V3AD+eiw9MUzg5ZzO2NTZigoowICJxA=" | base64 -d > ~/.android/debug.keystore
-          keytool -list -keystore ~/.android/debug.keystore -storepass android
-
-      - uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: 8.7
-
-      - name: Build debug APK
-        run: gradle assembleDebug --no-daemon
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Publish APK to Releases
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: build-${{ github.run_number }}
-          name: Geno - نسخة ${{ github.run_number }}
-          files: app/build/outputs/apk/debug/app-debug.apk
